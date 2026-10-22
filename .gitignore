@@ -1,0 +1,62 @@
+﻿# Security / secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.p12
+*.pfx
+*.key
+id_rsa*
+id_ed25519*
+*credentials*.json
+*service-account*.json
+secrets/
+.secret/
+# Dependencies and build outputs
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+dist/
+build/
+.next/
+coverage/
+*.log
+# Local tooling
+.idea/
+.vscode/*.code-workspace
+
+# AutoGitHubSync safety exclusions
+# Security / secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.p12
+*.pfx
+*.key
+id_rsa*
+id_ed25519*
+*credentials*.json
+*service-account*.json
+secrets/
+.secret/
+# Dependencies and build outputs
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+dist/
+build/
+.next/
+coverage/
+*.log
+# Local tooling
+.idea/
+.vscode/*.code-workspace
