@@ -42,3 +42,18 @@
 - Never claim a test passed without real execution evidence.
 - No customer code runs on trusted Laravel/Python hosts.
 - Security-Gated Launch (PD-039) is mandatory.
+
+## Quality, Speed & Token-Efficiency Policy
+
+1. Work on one bounded task or work package at a time.
+2. Read only relevant project files and dependencies; avoid repeated repository-wide scans.
+3. Use the approved PRD, acceptance specifications and implementation plan as the source of truth.
+4. Prefer the smallest correct change that satisfies the acceptance criteria.
+5. Reuse existing patterns and applicable skills instead of rebuilding solutions unnecessarily.
+6. Use deterministic local validation before expensive AI-based analysis, within the authorized scope.
+7. Apply risk-based verification, with strongest scrutiny for authorization, tenant isolation, billing, sandbox execution, secrets and GitHub writes.
+8. When test execution is authorized, run relevant tests for small changes; run broader regressions at defined integration gates rather than the full suite after every edit.
+9. Never sacrifice security or test coverage to save tokens.
+10. Stop when acceptance criteria are satisfied; report modified files, validation evidence, failures and remaining risks.
+11. Do not independently expand scope, select paid providers or perform deployments.
+12. Remain documentation-only until explicit authorization to start implementation; this policy does not authorize application code, dependency installation or test execution.

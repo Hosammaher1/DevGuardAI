@@ -1,7 +1,7 @@
 # DevGuard AI — Product Requirements Document (PRD) v4.3
 
 **Status:** Consolidated planning baseline; NOT an implemented system, NOT a measured/priced launch specification.  
-**Decisions:** PD-001–PD-042 (approved product choices).  
+**Decisions:** PD-001–PD-042 (approved product choices); ND01 Fixed Role Matrix and ND13 Selective Containment explicitly APPROVED by the product owner. Other ND decisions remain unresolved.
 **Scope:** Public, multi-tenant AI quality assurance and assisted fixing SaaS; universal target architecture with phased platform releases.  
 **Purpose:** Canonical requirements input for Codex acceptance test specifications and engineering plans.  
 **No authorization to write application code or initiate deployment is conveyed by this document.**
@@ -32,7 +32,7 @@ DevGuard AI reduces developer effort in finding, understanding and safely fixing
 | PD-007 | Guided configuration from read-only repository metadata, allow confirmation/override only when necessary. |
 | PD-008 | Explicit, informed approval **before any code modification or creation of fix PR**; approval bound to repository, commit, change scope and budget. Non-mutating automated review comments are an exception under PD-021. |
 | PD-009 | GitHub login exclusively via Laravel Socialite OAuth; distinguish user authentication from GitHub App repository authorization. |
-| PD-010 | Personal and basic team workspaces, Owner/Admin/Member/Viewer roles and strict multi-tenant authorization; exact individual permission matrix requires review. |
+| PD-010 | Personal and basic team workspaces, Owner/Admin/Member/Viewer roles and strict multi-tenant authorization; exact individual permission matrix is approved under ND01 (§3.1.1). |
 | PD-011 | In-app Dashboard and Email notifications only; no Telegram integration. |
 | PD-012 | Advanced quality reports: severity, timelines/history, screenshots/logs/evidence, run comparison, AI diagnosis/fix and PR status. |
 | PD-013 | Public multi-tenant SaaS; sandbox, quotas, abuse controls, isolation and release security gating mandatory. |
@@ -74,7 +74,53 @@ DevGuard AI reduces developer effort in finding, understanding and safely fixing
 - GitHub OAuth user login is distinct from GitHub App installation and installation permissions; users can only grant their own authorized repositories.
 - Personal workspace and Team workspace membership; enforce Owner/Admin/Member/Viewer access for every API, queue job, report, signed artifact, fix approval, webhook processing and billing operation.
 - Tenant scoping must be enforced server-side using trusted membership and policy, not submitted workspace IDs.
-- **RBAC exact permissions beyond role names remain to be approved**; do not treat draft matrices as binding.
+- **ND01 is APPROVED:** enforce the fixed role matrix and mandatory policies in §3.1.1. Prior role-grant proposals are superseded.
+
+### 3.1.1 ND01 — APPROVED: Fixed Role Matrix
+
+**Authority:** Explicit product-owner approval in this documentation task supersedes the former unresolved ND01 status. Exactly four workspace roles exist: **Owner**, **Admin**, **Member**, **Viewer**. The following **RBAC-MATRIX** grants are approved policy; implementation/schema/security validation remains future work.
+
+| Action | Owner | Admin | Member | Viewer |
+|---|---|---|---|---|
+| View authorized projects and reports | Yes | Yes | Yes | Yes |
+| Connect authorized repositories | Yes | Yes | No | No |
+| Start scans | Yes | Yes | Yes | No |
+| View authorized scan results | Yes | Yes | Yes | Yes |
+| Propose AI Fix plans | Yes | Yes | Yes | No |
+| Approve AI Fix execution | Yes | Yes | No | No |
+| Approve unverified Draft PR creation for review | Yes | Yes | No | No |
+| Cancel own jobs, subject to safety policy | Yes | Yes | Yes | No |
+| Manage project settings | Yes | Yes | No | No |
+| Invite members | Yes | Yes | No | No |
+| Remove Members or Viewers | Yes | Yes | No | No |
+| Change Member/Viewer roles | Yes | Yes | No | No |
+| Grant or revoke Admin role | Yes | No | No | No |
+| Manage billing and subscriptions | Yes | No | No | No |
+| Manage sensitive workspace settings | Yes | No | No | No |
+| Transfer workspace ownership | Yes | No | No | No |
+| Delete workspace | Yes | No | No | No |
+
+All grants require active membership and authority over the resource; Yes is never a bypass of GitHub consent, environment safety, quota, approval or sandbox policy. Unspecified actions are denied, including attempts to apply a Member/Viewer management grant to an Admin or Owner.
+
+| Clause | Mandatory authorization policy |
+|---|---|
+| RBAC-01 | Default deny for unspecified actions. |
+| RBAC-02 | All authorization decisions must be enforced server-side. |
+| RBAC-03 | Every action must be scoped to an active workspace membership and authorized resource. |
+| RBAC-04 | A user cannot promote themselves or grant permissions beyond their own authority. |
+| RBAC-05 | An Admin cannot appoint another Admin or Owner. |
+| RBAC-06 | Membership invitations require acceptance by the intended identity. |
+| RBAC-07 | Expired, revoked, or already-used invitations must be rejected. |
+| RBAC-08 | Ownership transfer requires authorized confirmation and acceptance by the new owner. |
+| RBAC-09 | Never remove the last active Owner without a safe, completed ownership transfer. |
+| RBAC-10 | Membership removal or role reduction revokes future authorization immediately. |
+| RBAC-11 | Revalidate authorization before sensitive execution boundaries, including sandbox dispatch, AI Fix execution, GitHub writes and billing actions. |
+| RBAC-12 | Fix approvals must be bound to their precise workspace, repository, commit, file scope, fix plan and execution budget. |
+| RBAC-13 | Maintain auditable records of role changes, approvals and denied privileged actions without exposing secrets. |
+| RBAC-14 | Workspace roles never grant platform-level emergency Kill Switch authority. |
+| RBAC-15 | GitHub permissions, consent, sandbox policies and security gates remain independently enforced. |
+
+**Technical details still open:** API/schema and transaction/locking choices, identity-bound invitation tokens and expiry duration, ownership confirmation/acceptance mechanism, distributed revocation consistency, audit storage and sensitive-setting classification must be specified and validated under T01/T02. These details do not reopen the approved grants. No additional role or unspecified action is implicitly granted; ND03 financial settlement and all other pending ND policies remain separate.
 
 ### 3.2 GitHub integrations and automated triggers
 
@@ -106,6 +152,25 @@ DevGuard AI reduces developer effort in finding, understanding and safely fixing
 - Runner crash, timeout, cancellation, cleanup/failure, contaminated image, filesystem persistence, cross-tenant overlap and replay are testable denial cases.
 - Mobile/desktop OS-specific runner must meet same controls before usable by any user.
 
+### 3.5.1 ND13 — APPROVED: Selective Containment (option C)
+
+**Authority:** Explicit product-owner approval supersedes the former unresolved ND13 status. This platform incident policy is distinct from workspace RBAC and ordinary job cancellation.
+
+| Clause | Mandatory emergency policy |
+|---|---|
+| KS-01 | Four independent platform-level controls: Scan, AI Fix, GitHub Write and Sandbox/Runner. A disabled dependency (for example a runner) can block dependent work without changing another switch's state. |
+| KS-02 | Activation and resumption require currently authorized platform operators. Workspace Owner/Admin/Member/Viewer roles confer no platform emergency authority. |
+| KS-03 | Prevent new affected side effects immediately at the trusted action boundary, including queued work, concurrent dispatch and retries. Already-submitted provider effects are handled by KS-06; activation is not a claim to undo a remote effect. |
+| KS-04 | Cancel, quarantine or isolate unsafe in-flight work according to incident scope; preserve truthful interrupted/partial/blocked state. The exact containment mechanism is a technical design choice, not permission to drain unsafe work. |
+| KS-05 | Continue safe trusted cleanup, auditing and reconciliation. Repository-defined cleanup hooks and arbitrary customer commands do not become trusted or exempt from isolation, authority or emergency policy. |
+| KS-06 | Reconcile already-submitted GitHub operations using observed provider state, including lost acknowledgments. Do not assume cancellation, duplicate a write, or bypass a disabled GitHub Write control with a reconciliation retry. |
+| KS-07 | Fail closed at dangerous execution boundaries when trusted switch state is unavailable. Only independently authorized safe trusted cleanup/audit/reconciliation may continue; unknown state never permits unsafe dispatch or resumption. |
+| KS-08 | Reconcile credit reservations idempotently under separate ND03 financial policy, using durable logical-job identities. ND13 approves no refund, cancellation charge, reset time or extra debit. |
+| KS-09 | Resume only after authorized incident review, verified remediation and current-policy revalidation of membership, resource authority, GitHub consent, precise Fix approval, quota, budget, capability and applicable switch state. Re-enabling one control does not re-enable another or replay unsafe work. |
+| KS-10 | Record activation, attempted unauthorized control, incident/scope, impacted jobs, containment, remote-effect resolution, credit reconciliation, recovery/resumption and operator identity with protected audit provenance; expose no secrets or cross-tenant data. |
+
+T01 refines technical contracts against this approved policy. T06 enforces Sandbox/Runner controls, T08 Scan admission/dispatch, T09 GitHub Check/summary/comment writes, T14 AI Fix admission and T15 patch/retry/Draft PR publication. Every boundary applies all relevant independent controls. T18 owns integrated containment/resumption verification; controls are not deferred until T18. Mechanisms for operator provisioning, policy distribution/fencing, containment, read-only provider reconciliation and audit durability require technical validation. No vendor, timeout or consistency implementation is selected here.
+
 ### 3.6 AI testing, Fix workflows and human review
 
 - AI plans risk-based tests with deterministic checks and evidence; AI-generated tests cannot grant permissions or mutate production by default.
@@ -120,6 +185,69 @@ DevGuard AI reduces developer effort in finding, understanding and safely fixing
 - Financial events require validated signatures, idempotency keys, out-of-order event handling, reconciliation and atomic entitlement updates; failed/partial payment never grants unverified upgrades.
 - Dashboard+Email prioritized notifications, opt-outs where appropriate, dedupe, least-privilege recipients.
 - Report artifacts private and encrypted as appropriate, scoped access, expiring links, sanitization, scheduled retention/cleanup and separate audit/financial requirements; numeric report days pending.
+
+### 3.8 Expert Runtime QA Skill System
+
+**Design scope:** Documentation design requested by the product owner, refining PD-005/007/012/013/026–029/038–042 without changing PD-001–PD-042, approved ND01/ND13 or the remaining ND decisions. No runtime skill, Codex Skill, framework, runner or benchmark has been installed, executed, validated or deployed by this document.
+
+#### 3.8.1 Capability catalog and release boundaries
+
+| Capability ID | Runtime specialty | First usable milestone / scope | Required behavior |
+|---|---|---|---|
+| RQA-STRATEGY | QA Test Strategy and Risk-Based Testing | R1 Web and shared planning; extend per vetted profile R2–R5 | Risk/coverage plan tied to actual repository/target evidence; no fabricated coverage. |
+| RQA-DESIGN | Test Case Design | R1 Web/shared; extend R2–R5 | Equivalence partitions, boundaries, decision tables, state transitions and relevant negative/concurrency/cleanup cases. |
+| RQA-WEB | Web Automation | R1 React/Vite and vanilla JS; extra Web profiles separately vetted | Real deterministic checks and feasible isolated Playwright; brokered login and production safety still apply. |
+| RQA-API | API and Integration Testing | R2 Backend/API then Full-Stack | Contract/auth/role/service/database fixtures on vetted isolated profiles; R1 development API tests are not this customer capability. |
+| RQA-SECURITY | Security and Authorization Testing | R1 authorized Web scope; repeat relevant boundaries R2–R5 | Tenant/role/approval/SSRF/injection/secret checks in authorized fixtures; no unlimited production attack authority. |
+| RQA-PERFORMANCE | Performance and Concurrency Testing | R1 authorized isolated Web fixtures; extend R2–R5 | Bounded load/race/resource observations; no production load or capacity/SLA claim without separate authorization and measurement. |
+| RQA-ACCESSIBILITY | Accessibility Testing | R1 declared Web diagnostic checks; later profiles independently declared | Evidence-backed supported checks and manual limitations; no invented WCAG certification, blanket coverage or new ND09 release gate. |
+| RQA-DATA | Test Data and Fixtures Management | R1 isolated Web data; R2 services/DB; R3 corpora; R4/R5 device/OS fixtures | Authorized synthetic/scoped fixtures, secret brokerage, tenant isolation and cleanup; no uncontrolled production mutations. |
+| RQA-MOBILE | Mobile Testing | R4 Android, then separately vetted iOS | Actual compatible emulator/device/macOS/Xcode profiles and private session cleanup; discovery alone enables nothing. |
+| RQA-DESKTOP | Desktop Testing | R5 per vetted Electron/Tauri/native OS profile | Matching isolated GUI/build/process/filesystem/network runner and per-OS evidence. |
+| RQA-AI-EVAL | AI Application Evaluation | R3 agent/chatbot/RAG | Versioned deterministic/rubric/tool/grounding/injection/regression observations; separate from R1 AI-assisted scan planning. |
+| RQA-TRIAGE | Defect Triage and Root-Cause Analysis | R1 actual Web findings; extend R2–R5 | Evidence-grounded grouping and hypotheses with confidence/limitations; no source modification privilege. |
+| RQA-RELEASE | Release Quality Gates | R1 available scope; repeat R2–R5 | Check required real evidence and deny unsupported readiness claims; no deployment, merge or emergency authority. |
+
+R1 shared contracts describe later capabilities as PLANNED; only R1 Web and shared capability implementations, fixtures and quality evidence are R1 prerequisites. R2 API/Full-Stack, R3 customer-AI evaluation, R4 Android then iOS, and R5 Desktop extend the same contracts and repeat relevant security/quality gates before availability. Future native providers, versions or ND08 datasets cannot block R1. Accessibility diagnostic capability does not resolve ND09 or invent a formal compliance promise.
+
+#### 3.8.2 Normative runtime design clauses
+
+| Requirement | Observable design requirement |
+|---|---|
+| QA-001 | Runtime QA Skills are versioned planning/analysis instructions and validated capability metadata consumed by the Python AI Orchestrator. Codex development Skills guide building DevGuard and are a separate system; neither kind alone executes tests or proves quality. Real testing frameworks and authorized isolated runners produce observations. |
+| QA-002 | Trusted Capability Registry and Scan Planner select skills by platform/module, task, release, exact supported version, independent Scan/Fix capability and current authorization. Record selection reasons and explicit exclusions. PLANNED/BLOCKED/UNSUPPORTED profiles cannot be enabled by an LLM or repository text. Shared R1 selection must not require later API/AI/native providers. |
+| QA-003 | A manifest identifies skill ID/version, content digest, provenance/review state, orchestrator/manifest schema compatibility, adapter/tool/profile dependencies, authorized tool requirements, input/output and evidence contracts, dataset/benchmark versions, execution budget requirements and permitted release scope. Validate it as data against the trusted distribution/review policy before admission; invalid or incompatible manifests grant no authority. Serialization, version scheme and integrity mechanism remain QTD-01. |
+| QA-004 | Skill versions are immutable after review; updates require compatibility validation and regression evidence before promotion. Pin the selected version and digest for a run. Rollback selects a previously validated compatible version under current policy, does not silently change a running attempt, restore revoked permissions, widen tools or claim new versions verified. |
+| QA-005 | Effective tools are the intersection of the reviewed manifest, trusted actor/workspace/repository/target scope, adapter capability, consent, precise Fix approvals, provider policy and current emergency controls. Revalidate at each dangerous boundary; a skill or model cannot grant a permission. Untrusted checkout/build/test/browser/patch work stays in external managed isolated runners; trusted orchestration never executes customer code. Broker secrets to approved trusted login only. |
+| QA-006 | Repository files, webpages, test outputs, retrieved documents and model/tool responses are untrusted task data. They cannot install/replace skills, edit trusted manifests, select an unauthorized tool, alter network phase, disclose secrets, expand scope/budget, disable evidence checks or operate Kill Switches. Trusted user input still requires server authorization; quoting an instruction or role name does not make it authoritative. |
+| QA-007 | Select relevant test techniques from observed risk and declared capability: partitions/boundaries, decision/state models, negative/authorization, concurrency/replay, timeout/cleanup and partial coverage as appropriate. Record which supported risks are exercised and excluded; don't invent a coverage percentage, require mandatory staging/login for safe partial scans, or select unavailable techniques as executed. |
+| QA-008 | Keep deterministic assertions and AI judgments distinct. Deterministic outcomes require observed assertions; AI diagnosis/rubric opinions retain evidence links, uncertainty and limitations and never silently upgrade a failed/unexecuted test to PASS. Confidence must have a stated assessed basis; no invented probability or universal accuracy promise. A hypothesis without execution evidence is labeled unverified. |
+| QA-009 | Every finding/result binds to job, workspace scope, source SHA or explicitly unknown live revision, actual platform/profile, case/assertion, selected skill/digest, tool/model configuration, runner and dataset identities plus private sanitized evidence. Root-cause grouping must preserve individual evidence and cannot fabricate a defect from a model assertion alone. |
+| QA-010 | Evaluation datasets/benchmarks are versioned, provenance-recorded, authorized, integrity-checked and protected from tenant leakage. Maintain labeled defect fixtures and clean controls, independent evaluation/holdout material and documented limitations; customer secrets/private code are not silently repurposed as shared evaluation data. Dataset tampering, contamination or missing labels invalidates the affected evaluation. R1 skill benchmarks are separate from ND08's R3 customer-AI evaluation corpus. |
+| QA-011 | Measure false positives and false negatives separately against known clean and defect-bearing fixtures, stratified by declared capability/profile. Record sample identities, denominators, misses, unsupported scope and nondeterministic variation. Unexecuted/partial evaluation is not zero errors. Approve benchmark datasets, minimum sample coverage and quality/regression thresholds before production promotion (QTD-03); numeric values are not established here. |
+| QA-012 | Apply approved ND04 CPU/RAM/disk/wall-time/token/model/browser/concurrency and retry ceilings across all selected skills within the authorized logical run. Timeouts, denied tools, runner loss and exhausted budgets yield truthful partial/failed/blocked coverage, safe cleanup and private retained observations without unsafe fallback. Internal skills do not create extra Scan credits; Fix retries/verification follow PD-017 and financial settlement remains ND03. |
+| QA-013 | Audit skill selection/admission/rejection, versions, scope/policy, authorized tools, budgets, observations, nondeterministic model settings, rollback and exclusions with secret-safe provenance. Reproduction uses pinned compatible fixture/tool/runner/skill identities and records remaining nondeterminism; it does not promise identical model text. Exact record formats and private artifact links remain QTD-04 and ND05. |
+| QA-014 | Before any runtime skill version is usable in production, require reviewed provenance/manifest and compatibility, authorized tool/runner boundaries, injection and privacy checks, deterministic-versus-judgment/evidence validation, independent behavioral evaluation on QTD-03 benchmarks including FP/FN/regression and budget/failure cases, and a validated rollback path. Missing, stale or mismatched evidence blocks that skill/profile. An independent qualified reviewer must assess behavior, not just manifest syntax. These gates supplement, never replace, applicable SG-01–SG-12 and platform release review. |
+
+#### 3.8.3 Contracts, trust and promotion flow
+
+Trusted approved scope + immutable source identity + observed discovery → Capability Registry/Scan Planner → eligible manifest/version and documented risk/technique plan → current policy/tool/budget/emergency admission → real isolated adapter/framework execution → deterministic observations and separately labeled AI analysis → sanitized scoped evidence/report → security and runtime-skill quality review.
+
+Review/promotion and runtime execution are separate authorities. Runtime output cannot modify a development Skill, promote itself, change a registry entry, approve a fix, mutate source before approval or claim release readiness without actual evidence. Skill selection explains feasible partial coverage when optional credentials, profiles or techniques are absent; it does not make unsupported work pass.
+
+| Technical record | Still to specify/validate | Required before |
+|---|---|---|
+| QTD-01 | Manifest serialization/schema, version/compatibility rules, digest/integrity and trusted publication/rollback mechanisms | T30 manifest admission and version handling |
+| QTD-02 | Tool-broker/adapter interfaces, denied-action/error contracts, isolation integration and cancellation/checkpoint semantics | T32 execution boundary acceptance |
+| QTD-03 | R1 per-capability benchmark datasets, clean/defect labels, holdout separation, FP/FN baselines, sample coverage and promotion/regression thresholds; extend separately per later release | T33 production eligibility; T34–T38 later-capability admission |
+| QTD-04 | Provenance/evidence schema, confidence presentation/calibration and reproducibility records | T32/T33 evidence and quality acceptance |
+
+These are explicit technical/QA validation records, not new approved financial values or replacements for ND02–ND12/ND14–ND15. QTD-03 R1 runtime-skill evaluation must not be confused with the R3-only ND08 product evaluation oracle. Unknown thresholds keep admission blocked; syntax validation is not behavioral evidence.
+
+#### 3.8.4 Development Skills are separate artifacts
+
+Use available Superpowers methods and the draft `devguard-acceptance-specs` for DevGuard development. Planned specialist development Skills remain unavailable unless separately authored. Do not create or install all custom Skills: propose a reusable development Skill only for a demonstrated guidance gap beyond the PRD, AGENTS.md and existing methods. Any future Codex Skill authoring must follow `superpowers:writing-skills`, including independent behavioral verification before reliance. Runtime QA manifests/instructions are product design artifacts, not claims that those Codex Skills exist or have passed validation.
+
 
 ## 4. Platform-specific acceptance scope and roadmap
 
@@ -190,7 +318,7 @@ Follow integrated vertical slices, security enforced from first working path:
 | Example per-task costs | Illustrative only, not measured | Not a quote or vendor price |
 | RPO/RTO | 1 hour / 4 hours | Suggested initial targets, unapproved |
 | Upgrade prorated quota handling | Whether cap resets/credits at upgrade | Unresolved financial policy |
-| Exact role operation matrix | Owner/Admin/Member/Viewer operation grants | Unresolved; explicit review required |
+| Exact role operation matrix | Fixed Owner/Admin/Member/Viewer grants and mandatory authorization policies in §3.1.1 | APPROVED ND01; implementation validation remains |
 | Fair use/scan budgets | CPU, RAM, storage, time, token, concurrency, API rates | To measure and set |
 | Provider choices | Sandbox, cloud, macOS, payment, email, models, vault, queue | Unselected; evaluate security, viability and cost |
 | Live deployment sequencing | Detect exact finished deployment / SHA before post-deployment checks | Operational specification required |
@@ -206,7 +334,7 @@ Follow integrated vertical slices, security enforced from first working path:
 3. Every acceptance case requires: unique test ID; PD reference(s); release/platform; priority; actor/permissions; Given/When/Then; expected observable result; test type/automation target; security/quota side effect where relevant; status `SPECIFIED / NOT EXECUTED`.
 4. Cover happy path, cancellation, failure, abuse, cross-tenant boundary, concurrency, replay, timeout, cleanup, partial capability, cost, rollback/recovery and safe GitHub writes.
 5. Build an explicit 42-decision traceability matrix, listing at least one relevant test for each applicable decision and release gating for planned platforms; flag any uncovered requirement rather than claiming complete coverage.
-6. Do not invent test execution evidence. The previously produced 106 tests and 23 tasks are **source-blocked drafts**; review and expand rather than blindly asserting sufficiency.
+6. Do not invent test execution evidence. The original 106 tests/23 tasks were source-blocked drafts; the current catalog preserves their IDs and expands them against this available PRD. Specification, structural checks and approved policy never imply executed tests or release readiness.
 7. This PRD does not approve app code generation, service scaffolding, deployment, git init, push, or purchasing cloud resources. User authorization is needed separately.
 
 ## 9. Acceptance review and release definition of done
