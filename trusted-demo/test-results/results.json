@@ -1,0 +1,285 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "D:\\programming\\DevGuardAI\\trusted-demo\\node_modules\\@playwright\\test\\cli.js",
+      "test"
+    ],
+    "configFile": "D:\\programming\\DevGuardAI\\trusted-demo\\playwright.config.js",
+    "rootDir": "D:/programming/DevGuardAI/trusted-demo/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/programming/DevGuardAI/trusted-demo/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "D:/programming/DevGuardAI/trusted-demo/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 15000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "D:\\programming\\DevGuardAI\\trusted-demo\\test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "chromium",
+        "testDir": "D:\\programming\\DevGuardAI\\trusted-demo\\tests",
+        "snapshotDir": "D:\\programming\\DevGuardAI\\trusted-demo\\tests",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 15000,
+        "use": {
+          "screenshot": "only-on-failure",
+          "trace": "retain-on-failure",
+          "headless": true,
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "screen": {
+            "width": 1920,
+            "height": 1080
+          },
+          "deviceScaleFactor": 1,
+          "isMobile": false,
+          "hasTouch": false,
+          "defaultBrowserType": "chromium"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": "chromium"
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 10,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "demo.spec.js",
+      "file": "demo.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "ShopFlow E2E Test Suite",
+          "file": "demo.spec.js",
+          "line": 6,
+          "column": 6,
+          "specs": [
+            {
+              "title": "01: Homepage and metrics render correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 15000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1321,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-27T21:48:56.282Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e55eebcb6d281b4de51c-1debad5e5d7b8fc9a970",
+              "file": "demo.spec.js",
+              "line": 7,
+              "column": 3
+            },
+            {
+              "title": "02: User can sign in and profile state updates",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 15000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 179,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-27T21:48:57.720Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e55eebcb6d281b4de51c-8648c58b167c96b00946",
+              "file": "demo.spec.js",
+              "line": 21,
+              "column": 3
+            },
+            {
+              "title": "03: Cart items and checkout workflow confirmation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 15000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "Intentional defect fixture: #checkout-button refactored to #submit-checkout-btn",
+                      "location": {
+                        "file": "D:\\programming\\DevGuardAI\\trusted-demo\\tests\\demo.spec.js",
+                        "line": 38,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 3198,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#checkout-button')\nExpected: visible\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#checkout-button') with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('#checkout-button')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#checkout-button')\nExpected: visible\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#checkout-button') with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('#checkout-button')\u001b[22m\n\n    at D:\\programming\\DevGuardAI\\trusted-demo\\tests\\demo.spec.js:49:31",
+                        "location": {
+                          "file": "D:\\programming\\DevGuardAI\\trusted-demo\\tests\\demo.spec.js",
+                          "column": 31,
+                          "line": 49
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 47 |\u001b[39m     \u001b[90m// The test asserts #checkout-button, generating failure trace, logs, and screenshot\u001b[39m\n \u001b[90m 48 |\u001b[39m     \u001b[36mconst\u001b[39m checkoutBtn \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'#checkout-button'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 49 |\u001b[39m     \u001b[36mawait\u001b[39m expect(checkoutBtn)\u001b[33m.\u001b[39mtoBeVisible({ timeout\u001b[33m:\u001b[39m \u001b[35m3000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                               \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 50 |\u001b[39m     \u001b[36mawait\u001b[39m checkoutBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 51 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 52 |\u001b[39m })\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\programming\\DevGuardAI\\trusted-demo\\tests\\demo.spec.js",
+                            "column": 31,
+                            "line": 49
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#checkout-button')\nExpected: visible\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#checkout-button') with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('#checkout-button')\u001b[22m\n\n\n  47 |     // The test asserts #checkout-button, generating failure trace, logs, and screenshot\n  48 |     const checkoutBtn = page.locator('#checkout-button');\n> 49 |     await expect(checkoutBtn).toBeVisible({ timeout: 3000 });\n     |                               ^\n  50 |     await checkoutBtn.click();\n  51 |   });\n  52 | });\n    at D:\\programming\\DevGuardAI\\trusted-demo\\tests\\demo.spec.js:49:31"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-27T21:48:57.906Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "Intentional defect fixture: #checkout-button refactored to #submit-checkout-btn",
+                          "location": {
+                            "file": "D:\\programming\\DevGuardAI\\trusted-demo\\tests\\demo.spec.js",
+                            "line": 38,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\programming\\DevGuardAI\\trusted-demo\\test-results\\demo-ShopFlow-E2E-Test-Sui-16c5b-ckout-workflow-confirmation-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\programming\\DevGuardAI\\trusted-demo\\tests\\demo.spec.js",
+                        "column": 31,
+                        "line": 49
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e55eebcb6d281b4de51c-4aa3cbf370abd089416b",
+              "file": "demo.spec.js",
+              "line": 35,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-27T21:48:55.925Z",
+    "duration": 5848.664,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
