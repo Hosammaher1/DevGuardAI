@@ -18,6 +18,14 @@ use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'healthy',
+        'service' => 'devguard-api',
+        'timestamp' => now()->toIso8601String(),
+    ]);
+});
+
 Route::get('/', function () {
     if (file_exists(public_path('index.html'))) {
         return response(file_get_contents(public_path('index.html')))->header('Content-Type', 'text/html');

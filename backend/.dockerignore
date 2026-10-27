@@ -1,0 +1,50 @@
+# Ignore local environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+
+# Ignore version control and IDE configuration
+.git
+.github
+.gitignore
+.fleet
+.idea
+.nova
+.vscode
+.zed
+
+# Ignore dependencies and build artifacts
+vendor/
+node_modules/
+dist/
+build/
+*.log
+
+# Ignore local tests and test results
+tests/
+.phpunit.cache
+.phpunit.result.cache
+phpunit*.xml
+
+# Ignore local storage runtime files except gitkeeps
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+storage/app/*
+!storage/app/.gitignore
+!storage/app/public/.gitignore
+!storage/app/private/.gitignore
+
+# Ignore Docker files from image context
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+Homestead.json
+Homestead.yaml
+Thumbs.db
