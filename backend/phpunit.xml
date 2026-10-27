@@ -3,6 +3,7 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true"
+         cacheResult="false"
 >
     <testsuites>
         <testsuite name="Unit">
@@ -33,5 +34,6 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="DEVGUARD_ARTIFACTS_STORAGE_PATH" value="C:\Users\HP\AppData\Local\Temp\devguard-artifacts"/>
     </php>
 </phpunit>

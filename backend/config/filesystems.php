@@ -40,7 +40,7 @@ return [
 
         'private-artifacts' => [
             'driver' => 'local',
-            'root' => storage_path('app/private-artifacts'),
+            'root' => env('DEVGUARD_ARTIFACTS_STORAGE_PATH', app()->runningUnitTests() ? (sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'devguard-artifacts') : storage_path('app/private-artifacts')),
             'visibility' => 'private',
             'throw' => true,
             'report' => false,

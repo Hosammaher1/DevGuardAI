@@ -23,7 +23,7 @@ final class PrivateArtifactAccessTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('private-artifacts');
+        $this->setupPrivateArtifactsDisk();
     }
 
     public function test_dg_report_003_artifact_access_is_authorized_against_current_workspace_membership(): void

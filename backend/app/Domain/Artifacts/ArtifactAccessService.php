@@ -26,6 +26,7 @@ final readonly class ArtifactAccessService
         string $contents,
         CarbonImmutable $createdAt,
         array $sensitiveValues = [],
+        ?string $scanId = null,
     ): Artifact {
         $safeName = $this->safeOriginalName($originalName);
         $contents = $this->redactSensitiveValues($contents, $sensitiveValues);
@@ -40,6 +41,7 @@ final readonly class ArtifactAccessService
         try {
             return DB::transaction(fn (): Artifact => Artifact::query()->create([
                 'workspace_id' => $workspaceId,
+                'scan_id' => $scanId,
                 'artifact_type' => $artifactType,
                 'original_name' => $safeName,
                 'storage_key' => $storageKey,

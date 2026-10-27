@@ -21,7 +21,7 @@ final class ArtifactPersistenceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('private-artifacts');
+        $this->setupPrivateArtifactsDisk();
 
         self::assertSame('pgsql', config('database.default'));
         self::assertSame('devguard_test', config('database.connections.pgsql.database'));

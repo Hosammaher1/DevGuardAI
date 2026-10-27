@@ -41,22 +41,26 @@ final class GitHubOAuthController extends Controller
                     ],
                 );
 
-                $workspace = Workspace::query()->firstOrCreate(
-                    ['personal_owner_user_id' => $user->getKey()],
-                    ['name' => $user->name.' personal workspace'],
-                );
+                $workspaceWasCreated = false;
+                $workspace = Workspace::query()->where('personal_owner_user_id', $user->getKey())->first();
 
-                Membership::query()->updateOrCreate(
-                    [
+                if ($workspace === null) {
+                    $workspace = Workspace::query()->create([
+                        'personal_owner_user_id' => $user->getKey(),
+                        'name' => $user->name.' personal workspace',
+                    ]);
+                    $workspaceWasCreated = true;
+                }
+
+                if ($workspaceWasCreated) {
+                    Membership::query()->create([
                         'workspace_id' => $workspace->getKey(),
                         'user_id' => $user->getKey(),
-                    ],
-                    [
                         'role' => Role::Owner,
                         'active' => true,
                         'version' => 1,
-                    ],
-                );
+                    ]);
+                }
 
                 return $user;
             });

@@ -20,7 +20,7 @@ final class ArtifactControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('private-artifacts');
+        $this->setupPrivateArtifactsDisk();
     }
 
     public function test_artifact_link_endpoints_require_authenticated_current_workspace_membership(): void
