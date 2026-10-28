@@ -22,6 +22,19 @@ final class MvpSessionTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
+    public function test_unauthenticated_api_session_returns_json_when_browser_accepts_html(): void
+    {
+        $this->withHeaders(['Accept' => 'text/html'])
+            ->get('/api/session')
+            ->assertUnauthorized()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertExactJson(['message' => 'Unauthenticated.']);
+
+        $this->get('/workspaces/unused/usage')
+            ->assertUnauthorized()
+            ->assertExactJson(['message' => 'Unauthenticated.']);
+    }
+
     public function test_authenticated_session_returns_minimal_user_and_only_active_workspaces(): void
     {
         $user = User::query()->create([
