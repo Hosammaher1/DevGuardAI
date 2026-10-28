@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'mode' => 'local_development',
+    'mode' => env('DEVGUARD_OPERATING_MODE', 'local_development'),
     'policy_version' => '2026-10-25.1',
     'environments' => ['local', 'testing'],
     'banner' => 'LOCAL DEVELOPMENT — NO REAL PAYMENTS',

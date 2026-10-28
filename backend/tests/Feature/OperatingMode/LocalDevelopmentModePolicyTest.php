@@ -78,6 +78,50 @@ final class LocalDevelopmentModePolicyTest extends TestCase
         self::assertStringContainsString('operating_mode_environment_denied', $runtime->getOutput().$runtime->getErrorOutput());
     }
 
+    public function test_explicit_staging_mode_boots_with_production_guards_and_fails_closed_on_unsafe_config(): void
+    {
+        $runtime = new Process([PHP_BINARY, 'artisan', 'route:list', '--no-ansi'], base_path(), [
+            'APP_ENV' => 'production',
+            'APP_DEBUG' => 'false',
+            'DB_CONNECTION' => 'pgsql',
+            'DEVGUARD_OPERATING_MODE' => 'staging',
+        ]);
+        $runtime->run();
+        self::assertSame(0, $runtime->getExitCode(), $runtime->getOutput().$runtime->getErrorOutput());
+
+        $http = new Process([
+            PHP_BINARY, '-r', '$_SERVER["REQUEST_METHOD"]="GET"; $_SERVER["REQUEST_URI"]="/health"; $_SERVER["HTTP_HOST"]="localhost"; require "public/index.php";',
+        ], base_path(), [
+            'APP_ENV' => 'production',
+            'APP_DEBUG' => 'false',
+            'DB_CONNECTION' => 'pgsql',
+            'DEVGUARD_OPERATING_MODE' => 'staging',
+        ]);
+        $http->run();
+        self::assertSame(0, $http->getExitCode(), $http->getOutput().$http->getErrorOutput());
+        self::assertStringContainsString('"status":"healthy"', $http->getOutput());
+
+        $this->app['env'] = 'production';
+        config([
+            'devguard-mode.mode' => 'staging',
+            'app.debug' => false,
+            'database.default' => 'pgsql',
+        ]);
+
+        $policy = LocalDevelopmentModePolicy::current();
+        self::assertSame('staging', $policy->mode->value);
+        self::assertFalse($policy->commercialPaymentsEnabled);
+        self::assertFalse($policy->paymentProviderCallsEnabled);
+        self::assertFalse($policy->realFinancialChargesEnabled);
+
+        config(['app.debug' => true]);
+        self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
+        config(['app.debug' => false, 'database.default' => 'sqlite']);
+        self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
+        config(['database.default' => 'pgsql', 'devguard-runner.enabled' => true]);
+        self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
+    }
+
     public function test_unknown_or_missing_mode_fails_closed(): void
     {
         config(['devguard-mode.mode' => null]);

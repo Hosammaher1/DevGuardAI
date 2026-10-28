@@ -37,21 +37,27 @@ final readonly class LocalDevelopmentModePolicy
     public static function current(): self
     {
         $environment = app()->environment();
-        $allowedEnvironments = config('devguard-mode.environments');
-
-        if (! is_array($allowedEnvironments)
-            || ! in_array($environment, $allowedEnvironments, true)
-            || ! app()->environment(['local', 'testing'])) {
-            throw new LogicException('operating_mode_environment_denied');
-        }
-
         $modeValue = config('devguard-mode.mode');
         if (! is_string($modeValue)) {
             throw new LogicException('operating_mode_missing');
         }
 
         $mode = OperatingMode::tryFrom($modeValue);
-        if ($mode !== OperatingMode::LocalDevelopment) {
+        if ($mode === OperatingMode::LocalDevelopment) {
+            $allowedEnvironments = config('devguard-mode.environments');
+            if (! is_array($allowedEnvironments)
+                || ! in_array($environment, $allowedEnvironments, true)
+                || ! app()->environment(['local', 'testing'])) {
+                throw new LogicException('operating_mode_environment_denied');
+            }
+        } elseif ($mode === OperatingMode::Staging) {
+            if ($environment !== 'production'
+                || config('app.debug') !== false
+                || config('database.default') !== 'pgsql'
+                || config('devguard-runner.enabled') !== false) {
+                throw new LogicException('operating_mode_environment_denied');
+            }
+        } else {
             throw new LogicException('operating_mode_unknown');
         }
 
@@ -113,7 +119,9 @@ final readonly class LocalDevelopmentModePolicy
             }
         }
 
-        $banner = config('devguard-mode.banner', 'LOCAL DEVELOPMENT — NO REAL PAYMENTS');
+        $banner = $mode === OperatingMode::Staging
+            ? 'STAGING — NO REAL PAYMENTS'
+            : config('devguard-mode.banner', 'LOCAL DEVELOPMENT — NO REAL PAYMENTS');
         $unavailableReasons = config('devguard-mode.unavailable_capability_reasons', []);
 
         // Compute authoritative fingerprint across canonical security-relevant fields
