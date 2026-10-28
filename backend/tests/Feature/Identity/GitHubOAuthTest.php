@@ -6,9 +6,11 @@ use App\Domain\Identity\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as SocialiteUser;
+use PDOException;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
@@ -189,6 +191,33 @@ PHP;
         $this->assertAuthenticated();
 
         $this->post('/logout')->assertRedirect('/');
+
+        $this->assertGuest();
+    }
+
+    public function test_database_failure_during_callback_logs_sanitized_warning_and_fails_closed(): void
+    {
+        Log::shouldReceive('warning')
+            ->once()
+            ->with('GitHub OAuth callback failed', \Mockery::on(function (array $context): bool {
+                return $context['exception_type'] === PDOException::class
+                    && str_contains($context['message'], '***')
+                    && !str_contains($context['message'], 'supersecretpassword');
+            }));
+
+        User::saving(function (): void {
+            throw new PDOException('Connection error to postgresql://user:supersecretpassword@neon.tech/db failed');
+        });
+
+        Socialite::fake('github', SocialiteUser::fake([
+            'id' => 'github-db-fail',
+            'name' => 'DB Fail User',
+            'email' => 'fail@example.test',
+        ]));
+
+        $this->get('/auth/github/callback')
+            ->assertRedirect('/')
+            ->assertSessionHas('oauth_error', 'github_authentication_failed');
 
         $this->assertGuest();
     }

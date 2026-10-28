@@ -66,7 +66,21 @@ final class GitHubOAuthController extends Controller
                 return $user;
             });
         } catch (Throwable $exception) {
-            Log::warning('GitHub OAuth callback failed', ['exception_type' => $exception::class]);
+            $context = [
+                'exception_type' => $exception::class,
+                'code' => $exception->getCode(),
+                'message' => $this->sanitizeErrorMessage($exception->getMessage()),
+            ];
+
+            if ($exception instanceof \PDOException && isset($exception->errorInfo) && is_array($exception->errorInfo)) {
+                $context['sqlstate'] = $exception->errorInfo[0] ?? null;
+                $context['driver_code'] = $exception->errorInfo[1] ?? null;
+                $context['driver_message'] = isset($exception->errorInfo[2])
+                    ? $this->sanitizeErrorMessage((string) $exception->errorInfo[2])
+                    : null;
+            }
+
+            Log::warning('GitHub OAuth callback failed', $context);
             return redirect($this->appUrl('/'))->with('oauth_error', 'github_authentication_failed');
         }
 
@@ -88,5 +102,13 @@ final class GitHubOAuthController extends Controller
     private function appUrl(string $path): string
     {
         return rtrim((string) config('app.url'), '/').($path === '/' ? '' : $path);
+    }
+
+    private function sanitizeErrorMessage(string $message): string
+    {
+        $sanitized = preg_replace('/([a-z]+:\/\/[^:]+:)[^@]+(@)/i', '$1***$2', $message);
+        $sanitized = preg_replace('/(password|passwd|secret|token|key)\s*=\s*[^\s;,]+/i', '$1=***', (string) $sanitized);
+
+        return (string) $sanitized;
     }
 }
