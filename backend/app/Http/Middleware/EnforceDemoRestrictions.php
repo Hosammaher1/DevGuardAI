@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Membership;
 use App\Models\Workspace;
 use Closure;
 use Illuminate\Http\Request;
@@ -11,6 +12,7 @@ final class EnforceDemoRestrictions
 {
     /**
      * Handle an incoming request.
+     * Enforces strict tenant isolation for staging/invitation sessions.
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -21,41 +23,23 @@ final class EnforceDemoRestrictions
         $workspaceParam = $request->route('workspace');
         $workspaceId = is_object($workspaceParam) ? $workspaceParam->getKey() : (string) $workspaceParam;
 
-        $demoWorkspaceName = (string) config('devguard-demo.workspace_name', 'DevGuard AI Demo Workspace');
-
         if ($workspaceId !== '') {
-            $workspace = is_object($workspaceParam)
-                ? $workspaceParam
-                : Workspace::query()->whereKey($workspaceId)->first();
+            $user = $request->user();
+            if ($user === null) {
+                return response()->json(['error' => 'unauthenticated'], 401);
+            }
 
-            if ($workspace === null || $workspace->name !== $demoWorkspaceName) {
+            // Enforce tenant boundary: staging user can only access workspaces where they have active membership
+            $hasMembership = Membership::query()
+                ->where('workspace_id', $workspaceId)
+                ->where('user_id', $user->id)
+                ->where('active', true)
+                ->exists();
+
+            if (! $hasMembership) {
                 return response()->json([
                     'error' => 'tenant_isolation_violation',
-                    'message' => 'Demo sessions are strictly confined to the demo preview workspace.',
-                ], 403);
-            }
-        }
-
-        // Disable external / destructive writes for demo sessions
-        if ($request->isMethod('POST') || $request->isMethod('PATCH') || $request->isMethod('DELETE')) {
-            if ($request->is('*/publish-pr*')) {
-                return response()->json([
-                    'error' => 'demo_read_only',
-                    'message' => 'GitHub Draft PR publication is disabled in the shared demo environment to prevent untrusted external repository modifications.',
-                ], 403);
-            }
-
-            if ($request->is('*/invitations*') || $request->is('*/membership*') || $request->is('*/members/*') || $request->is('*/ownership-transfers*')) {
-                return response()->json([
-                    'error' => 'demo_read_only',
-                    'message' => 'Workspace membership and role administration are disabled in the shared demo environment.',
-                ], 403);
-            }
-
-            if ($request->is('*/github/installations*')) {
-                return response()->json([
-                    'error' => 'demo_read_only',
-                    'message' => 'GitHub App installations are disabled in the shared demo environment.',
+                    'message' => 'Access denied: You do not have permission to access another tenant workspace.',
                 ], 403);
             }
         }

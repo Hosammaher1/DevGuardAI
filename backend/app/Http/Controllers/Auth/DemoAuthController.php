@@ -33,30 +33,43 @@ final class DemoAuthController extends Controller
             ], 401);
         }
 
-        $provisioned = $this->provisioner->provision();
-        $user = $provisioned['user'];
-        $workspace = $provisioned['workspace'];
+        try {
+            $provisioned = $this->provisioner->provision();
+            $user = $provisioned['user'];
+            $workspace = $provisioned['workspace'];
 
-        Auth::login($user);
-        $request->session()->regenerate();
-        $request->session()->put('is_demo_session', true);
+            Auth::login($user);
+            $request->session()->regenerate();
+            $request->session()->put('is_demo_session', true);
 
-        return response()->json([
-            'status' => 'authenticated',
-            'message' => 'Demo session established successfully.',
-            'workspace_id' => $workspace->getKey(),
-            'user' => [
-                'id' => $user->getKey(),
-                'name' => $user->name,
-                'email' => $user->email,
-            ],
-            'workspace' => [
-                'id' => $workspace->getKey(),
-                'name' => $workspace->name,
-                'role' => 'admin',
-            ],
-            'is_demo' => true,
-        ]);
+            return response()->json([
+                'status' => 'authenticated',
+                'message' => 'Staging session established successfully.',
+                'workspace_id' => $workspace->getKey(),
+                'user' => [
+                    'id' => $user->getKey(),
+                    'name' => $user->name,
+                    'email' => $user->email,
+                ],
+                'workspace' => [
+                    'id' => $workspace->getKey(),
+                    'name' => $workspace->name,
+                    'role' => 'owner',
+                ],
+                'is_demo' => false,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Staging login provisioning error: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'error' => 'server_error',
+                'message' => 'Unable to initialize staging session: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function logout(Request $request): JsonResponse|RedirectResponse

@@ -16,13 +16,13 @@ return [
 
     'invitation_code_hash' => env('DEVGUARD_DEMO_INVITATION_HASH', null),
 
-    'workspace_name' => env('DEVGUARD_DEMO_WORKSPACE_NAME', 'DevGuard AI Demo Workspace'),
+    'workspace_name' => env('DEVGUARD_DEMO_WORKSPACE_NAME', 'DevGuard Staging Workspace'),
 
-    'user_email' => env('DEVGUARD_DEMO_USER_EMAIL', 'demo@devguard.ai'),
+    'user_email' => env('DEVGUARD_DEMO_USER_EMAIL', 'staging@devguard.ai'),
 
-    'user_name' => env('DEVGUARD_DEMO_USER_NAME', 'Demo Visitor'),
+    'user_name' => env('DEVGUARD_DEMO_USER_NAME', 'Staging Engineer'),
 
-    'user_github_id' => 'demo-visitor-shared',
+    'user_github_id' => 'staging-authorized-user',
 
     'throttle_attempts' => (int) env('DEVGUARD_DEMO_THROTTLE_ATTEMPTS', 5),
 

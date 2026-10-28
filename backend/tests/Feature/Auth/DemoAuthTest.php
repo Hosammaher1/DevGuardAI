@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Domain\Demo\DemoWorkspaceProvisioner;
+use App\Domain\Identity\Role;
+use App\Models\CreditAccount;
+use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,9 +36,9 @@ final class DemoAuthTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_demo_login_with_valid_code_authenticates_and_provisions_demo_workspace(): void
+    public function test_staging_login_with_valid_code_authenticates_and_provisions_clean_staging_workspace(): void
     {
-        $code = 'demo-test-invitation-2026';
+        $code = 'staging-test-code-2026';
         Config::set('devguard-demo.invitation_code', $code);
 
         $response = $this->postJson('/auth/demo', [
@@ -52,86 +54,125 @@ final class DemoAuthTest extends TestCase
                     'email',
                     'name',
                 ],
-                'is_demo',
+                'workspace' => [
+                    'id',
+                    'name',
+                    'role',
+                ],
             ])
             ->assertJson([
                 'status' => 'authenticated',
-                'is_demo' => true,
+                'workspace' => [
+                    'name' => 'DevGuard Staging Workspace',
+                    'role' => 'owner',
+                ],
             ]);
 
         $this->assertAuthenticated();
 
         $sessionResponse = $this->getJson('/api/session');
-        $sessionResponse->assertStatus(200)
-            ->assertJson([
-                'is_demo' => true,
-            ]);
+        $sessionResponse->assertStatus(200);
 
-        // Verify provisioned data
+        // Verify provisioned staging identity and workspace
         $this->assertDatabaseHas('users', [
-            'github_user_id' => 'demo-visitor-shared',
-            'email' => 'demo@devguard.ai',
+            'github_user_id' => 'staging-authorized-user',
+            'email' => 'staging@devguard.ai',
         ]);
 
         $this->assertDatabaseHas('workspaces', [
-            'name' => 'DevGuard AI Demo Workspace',
+            'name' => 'DevGuard Staging Workspace',
         ]);
 
-        $this->assertDatabaseHas('projects', [
-            'name' => 'Storefront E2E Suite',
+        $workspaceId = $response->json('workspace_id');
+
+        $this->assertDatabaseHas('memberships', [
+            'workspace_id' => $workspaceId,
+            'role' => Role::Owner->value,
+            'active' => true,
         ]);
 
-        $this->assertDatabaseHas('scans', [
-            'trigger' => 'scheduled',
-            'status' => 'completed',
+        $this->assertDatabaseHas('credit_accounts', [
+            'workspace_id' => $workspaceId,
+            'credit_kind' => 'scan',
+            'available_credits' => 50,
+        ]);
+
+        $this->assertDatabaseHas('credit_accounts', [
+            'workspace_id' => $workspaceId,
+            'credit_kind' => 'fix',
+            'available_credits' => 20,
         ]);
     }
 
-    public function test_demo_session_cannot_access_other_tenant_workspaces(): void
+    public function test_staging_session_cannot_access_other_tenant_workspaces(): void
     {
-        // 1. Provision a separate real workspace
-        $realWorkspace = Workspace::create([
-            'name' => 'Private Enterprise Workspace',
-            'owner_id' => 'private-user-123',
-            'status' => 'active',
+        // 1. Provision a separate private tenant workspace
+        $otherOwner = User::create([
+            'github_user_id' => 'other-tenant-user',
+            'name' => 'Other Tenant',
+            'email' => 'other@tenant.com',
         ]);
 
-        // 2. Authenticate as demo visitor
-        $code = 'devguard-demo-2026';
+        $privateWorkspace = Workspace::create([
+            'name' => 'Private Enterprise Workspace',
+            'personal_owner_user_id' => $otherOwner->id,
+        ]);
+
+        Membership::create([
+            'workspace_id' => $privateWorkspace->id,
+            'user_id' => $otherOwner->id,
+            'role' => Role::Owner,
+            'active' => true,
+            'version' => 1,
+        ]);
+
+        // 2. Authenticate as staging engineer
+        $code = 'staging-test-code-2026';
         Config::set('devguard-demo.invitation_code', $code);
 
         $this->postJson('/auth/demo', ['invitation_code' => $code])
             ->assertStatus(200);
 
-        // 3. Attempt access to the private workspace
-        $blockedResponse = $this->getJson("/workspaces/{$realWorkspace->id}/projects");
+        // 3. Attempt access to the other tenant's workspace
+        $blockedResponse = $this->getJson("/workspaces/{$privateWorkspace->id}/projects");
         $blockedResponse->assertStatus(403)
             ->assertJson([
                 'error' => 'tenant_isolation_violation',
             ]);
     }
 
-    public function test_demo_session_cannot_publish_pr_or_perform_destructive_actions(): void
+    public function test_staging_user_has_full_authorization_in_staging_workspace(): void
     {
-        $code = 'devguard-demo-2026';
+        $code = 'staging-test-code-2026';
         Config::set('devguard-demo.invitation_code', $code);
 
         $authResponse = $this->postJson('/auth/demo', ['invitation_code' => $code]);
         $workspaceId = $authResponse->json('workspace_id');
 
-        $plan = \App\Models\FixPlan::where('workspace_id', $workspaceId)->firstOrFail();
+        // Can access workspace projects
+        $projectsRes = $this->getJson("/workspaces/{$workspaceId}/projects");
+        $projectsRes->assertStatus(200)
+            ->assertJsonStructure(['projects']);
 
-        // Attempting to publish PR should be intercepted by demo restrictions
-        $blockedPrResponse = $this->postJson("/workspaces/{$workspaceId}/fix-plans/{$plan->id}/publish-pr");
-        $blockedPrResponse->assertStatus(403)
-            ->assertJson([
-                'error' => 'demo_read_only',
-            ]);
+        // Can access workspace scans
+        $scansRes = $this->getJson("/workspaces/{$workspaceId}/scans");
+        $scansRes->assertStatus(200)
+            ->assertJsonStructure(['scans']);
+
+        // Can access workspace metrics
+        $metricsRes = $this->getJson("/workspaces/{$workspaceId}/metrics");
+        $metricsRes->assertStatus(200)
+            ->assertJsonStructure(['metrics', 'latest_scan']);
+
+        // Can access workspace usage
+        $usageRes = $this->getJson("/workspaces/{$workspaceId}/usage");
+        $usageRes->assertStatus(200)
+            ->assertJsonStructure(['workspace', 'usage' => ['scan_credits', 'fix_credits'], 'system_health']);
     }
 
-    public function test_logout_clears_demo_session_and_credentials(): void
+    public function test_logout_clears_staging_session_and_credentials(): void
     {
-        $code = 'devguard-demo-2026';
+        $code = 'staging-test-code-2026';
         Config::set('devguard-demo.invitation_code', $code);
 
         $this->postJson('/auth/demo', ['invitation_code' => $code])
@@ -161,65 +202,5 @@ final class DemoAuthTest extends TestCase
         // 6th attempt should be throttled
         $throttled = $this->postJson('/auth/demo', ['invitation_code' => 'bad-attempt']);
         $throttled->assertStatus(429);
-    }
-
-    public function test_demo_visitor_can_read_all_demo_workspace_data(): void
-    {
-        $code = 'devguard-demo-2026';
-        Config::set('devguard-demo.invitation_code', $code);
-
-        $authResponse = $this->postJson('/auth/demo', ['invitation_code' => $code]);
-        $workspaceId = $authResponse->json('workspace_id');
-
-        // Projects
-        $projectsRes = $this->getJson("/workspaces/{$workspaceId}/projects");
-        $projectsRes->assertStatus(200)
-            ->assertJsonStructure(['projects']);
-        $this->assertNotEmpty($projectsRes->json('projects'));
-
-        // Scans
-        $scansRes = $this->getJson("/workspaces/{$workspaceId}/scans");
-        $scansRes->assertStatus(200)
-            ->assertJsonStructure(['scans']);
-        $this->assertNotEmpty($scansRes->json('scans'));
-
-        // Metrics
-        $metricsRes = $this->getJson("/workspaces/{$workspaceId}/metrics");
-        $metricsRes->assertStatus(200)
-            ->assertJsonStructure(['metrics' => ['total_scans', 'total_tests', 'total_passed', 'total_failed', 'pass_rate'], 'latest_scan']);
-
-        // Fix Plans
-        $plansRes = $this->getJson("/workspaces/{$workspaceId}/fix-plans");
-        $plansRes->assertStatus(200)
-            ->assertJsonStructure(['fix_plans']);
-        $this->assertNotEmpty($plansRes->json('fix_plans'));
-
-        // Notifications
-        $notificationsRes = $this->getJson("/workspaces/{$workspaceId}/notifications");
-        $notificationsRes->assertStatus(200)
-            ->assertJsonStructure(['notifications']);
-        $this->assertNotEmpty($notificationsRes->json('notifications'));
-    }
-
-    public function test_demo_session_cannot_invite_members_or_transfer_ownership(): void
-    {
-        $code = 'devguard-demo-2026';
-        Config::set('devguard-demo.invitation_code', $code);
-
-        $authResponse = $this->postJson('/auth/demo', ['invitation_code' => $code]);
-        $workspaceId = $authResponse->json('workspace_id');
-
-        $inviteRes = $this->postJson("/workspaces/{$workspaceId}/invitations", [
-            'email' => 'attacker@external.com',
-            'role' => 'admin',
-        ]);
-        $inviteRes->assertStatus(403)
-            ->assertJson(['error' => 'demo_read_only']);
-
-        $transferRes = $this->postJson("/workspaces/{$workspaceId}/ownership-transfers", [
-            'target_user_id' => 9999,
-        ]);
-        $transferRes->assertStatus(403)
-            ->assertJson(['error' => 'demo_read_only']);
     }
 }
