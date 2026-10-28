@@ -83,29 +83,36 @@ final class LocalDevelopmentModePolicyTest extends TestCase
         $runtime = new Process([PHP_BINARY, 'artisan', 'route:list', '--no-ansi'], base_path(), [
             'APP_ENV' => 'production',
             'APP_DEBUG' => 'false',
+            'APP_URL' => 'https://staging.example.test',
             'DB_CONNECTION' => 'pgsql',
+            'SESSION_DRIVER' => 'database',
             'DEVGUARD_OPERATING_MODE' => 'staging',
         ]);
         $runtime->run();
         self::assertSame(0, $runtime->getExitCode(), $runtime->getOutput().$runtime->getErrorOutput());
 
         $http = new Process([
-            PHP_BINARY, '-r', '$_SERVER["REQUEST_METHOD"]="GET"; $_SERVER["REQUEST_URI"]="/health"; $_SERVER["HTTP_HOST"]="localhost"; require "public/index.php";',
+            PHP_BINARY, '-r', 'require "vendor/autoload.php"; $app = require "bootstrap/app.php"; $response = $app->make(\Illuminate\Contracts\Http\Kernel::class)->handle(\Illuminate\Http\Request::create("/up")); echo $response->getStatusCode();',
         ], base_path(), [
             'APP_ENV' => 'production',
             'APP_DEBUG' => 'false',
+            'APP_URL' => 'https://staging.example.test',
             'DB_CONNECTION' => 'pgsql',
+            'SESSION_DRIVER' => 'database',
             'DEVGUARD_OPERATING_MODE' => 'staging',
         ]);
         $http->run();
         self::assertSame(0, $http->getExitCode(), $http->getOutput().$http->getErrorOutput());
-        self::assertStringContainsString('"status":"healthy"', $http->getOutput());
+        self::assertSame('200', $http->getOutput());
 
         $this->app['env'] = 'production';
         config([
             'devguard-mode.mode' => 'staging',
             'app.debug' => false,
+            'app.url' => 'https://staging.example.test',
             'database.default' => 'pgsql',
+            'session.driver' => 'database',
+            'session.secure' => true,
         ]);
 
         $policy = LocalDevelopmentModePolicy::current();
@@ -119,6 +126,27 @@ final class LocalDevelopmentModePolicyTest extends TestCase
         config(['app.debug' => false, 'database.default' => 'sqlite']);
         self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
         config(['database.default' => 'pgsql', 'devguard-runner.enabled' => true]);
+        self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
+    }
+
+    public function test_staging_rejects_nonpersistent_or_insecure_sessions(): void
+    {
+        $this->app['env'] = 'production';
+        config([
+            'devguard-mode.mode' => 'staging',
+            'app.debug' => false,
+            'app.url' => 'https://staging.example.test',
+            'database.default' => 'pgsql',
+            'devguard-runner.enabled' => false,
+            'session.driver' => 'array',
+            'session.secure' => true,
+        ]);
+        self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
+
+        config(['session.driver' => 'database', 'session.secure' => false]);
+        self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
+
+        config(['session.secure' => true, 'app.url' => 'http://staging.example.test']);
         self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
     }
 

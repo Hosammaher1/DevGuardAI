@@ -50,6 +50,14 @@ Configure the following variables in the Render Dashboard under **Environment**:
 | `APP_URL` | `https://devguard-api.onrender.com` | Public URL of the Render service |
 | `LOG_CHANNEL` | `stderr` | Routes application logs to container stderr for Render visibility |
 
+### Browser Session
+| Variable | Value | Description |
+|---|---|---|
+| `SESSION_DRIVER` | `database` | Persists OAuth state and login across requests; requires the `sessions` migration |
+| `SESSION_SECURE_COOKIE` | `true` | Sends the session cookie only over HTTPS |
+| `SESSION_DOMAIN` | *(unset)* | Keeps the cookie scoped to the API host |
+| `SESSION_SAME_SITE` | `lax` | Allows the top-level GitHub OAuth callback while retaining CSRF protection |
+
 ### Database (PostgreSQL)
 Render Free PostgreSQL provides a connection string via `DATABASE_URL`. The backend automatically maps `DATABASE_URL` to the `pgsql` database connection:
 

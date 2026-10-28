@@ -57,6 +57,15 @@ final readonly class LocalDevelopmentModePolicy
                 || config('devguard-runner.enabled') !== false) {
                 throw new LogicException('operating_mode_environment_denied');
             }
+            if (config('session.driver') !== 'database' || config('session.secure') !== true) {
+                throw new LogicException('operating_mode_session_configuration_denied');
+            }
+            $appUrl = config('app.url');
+            if (! is_string($appUrl)
+                || filter_var($appUrl, FILTER_VALIDATE_URL) === false
+                || parse_url($appUrl, PHP_URL_SCHEME) !== 'https') {
+                throw new LogicException('operating_mode_public_url_denied');
+            }
         } else {
             throw new LogicException('operating_mode_unknown');
         }

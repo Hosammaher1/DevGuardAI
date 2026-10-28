@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [sessionStatus, setSessionStatus] = useState('checking');
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, scans, repos, fixes, usage, notifications
@@ -39,11 +40,13 @@ export default function App() {
   }, []);
 
   const checkSession = async () => {
+    setSessionStatus('checking');
     try {
-      const res = await fetch('/api/session');
+      const res = await fetch('/api/session', { credentials: 'same-origin' });
       if (res.ok) {
         const data = await res.json();
         setCurrentUser(data.user);
+        setSessionStatus('authenticated');
         const wsList = data.workspaces || [];
         setWorkspaces(wsList);
         if (wsList.length > 0) {
@@ -52,11 +55,14 @@ export default function App() {
           loadWorkspaceData(first.id);
         }
       } else {
-        // Unauthenticated - show demo/login banner
         setCurrentUser(null);
+        setWorkspaces([]);
+        setActiveWorkspace(null);
+        setSessionStatus(res.status === 401 ? 'guest' : 'error');
       }
     } catch (err) {
       console.error('Session check failed:', err);
+      setSessionStatus('error');
     }
   };
 
@@ -264,6 +270,27 @@ export default function App() {
     return true;
   }) || [];
 
+  if (sessionStatus !== 'authenticated') {
+    return (
+      <main style={{ minHeight: '100vh', display: 'grid', placeContent: 'center', textAlign: 'center', gap: '1rem' }}>
+        <h1>DevGuard AI</h1>
+        {sessionStatus === 'checking' && <p>Checking session...</p>}
+        {sessionStatus === 'guest' && (
+          <>
+            <p>Sign in to access your dashboard.</p>
+            <a href="/auth/github/redirect">Sign in with GitHub</a>
+          </>
+        )}
+        {sessionStatus === 'error' && (
+          <>
+            <p>Could not verify your session.</p>
+            <button onClick={checkSession}>Retry</button>
+          </>
+        )}
+      </main>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }}>
       {/* SIDEBAR NAVIGATION */}
@@ -285,7 +312,7 @@ export default function App() {
           <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Active Workspace</div>
           <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)' }}></span>
-            {activeWorkspace ? activeWorkspace.name : 'Loading...'}
+            {activeWorkspace ? activeWorkspace.name : 'No workspace available'}
           </div>
         </div>
 
@@ -338,9 +365,6 @@ export default function App() {
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                 {currentUser ? currentUser.name : 'Authenticated User'}
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                {currentUser?.email || 'owner@devguard.ai'}
               </div>
             </div>
           </div>

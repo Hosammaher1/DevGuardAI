@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 use UnexpectedValueException;
@@ -64,14 +65,15 @@ final class GitHubOAuthController extends Controller
 
                 return $user;
             });
-        } catch (Throwable) {
-            return redirect('/')->with('oauth_error', 'github_authentication_failed');
+        } catch (Throwable $exception) {
+            Log::warning('GitHub OAuth callback failed', ['exception_type' => $exception::class]);
+            return redirect($this->appUrl('/'))->with('oauth_error', 'github_authentication_failed');
         }
 
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect('/dashboard');
+        return redirect($this->appUrl('/dashboard'));
     }
 
     public function logout(Request $request): RedirectResponse
@@ -80,6 +82,11 @@ final class GitHubOAuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect($this->appUrl('/'));
+    }
+
+    private function appUrl(string $path): string
+    {
+        return rtrim((string) config('app.url'), '/').($path === '/' ? '' : $path);
     }
 }

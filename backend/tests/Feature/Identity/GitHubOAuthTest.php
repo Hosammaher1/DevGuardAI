@@ -5,6 +5,7 @@ namespace Tests\Feature\Identity;
 use App\Domain\Identity\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -82,6 +83,62 @@ PHP;
         self::assertNull($user->getAttribute('github_token'));
     }
 
+    public function test_oauth_login_persists_through_a_new_session_store_and_logout_clears_it(): void
+    {
+        config(['session.driver' => 'database', 'session.secure' => true]);
+        app('session')->forgetDrivers();
+
+        $guest = $this->getJson('/api/session')->assertUnauthorized();
+        $sessionName = config('session.cookie');
+        $guestCookie = collect($guest->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === $sessionName);
+        self::assertNotNull($guestCookie);
+
+        Socialite::fake('github', SocialiteUser::fake([
+            'id' => 'github-session-1001',
+            'name' => 'Session User',
+            'email' => 'session@example.test',
+        ]));
+        $this->withUnencryptedCookie($sessionName, $guestCookie->getValue())->withCredentials();
+        $callback = $this->get('/auth/github/callback')->assertRedirect('/dashboard');
+        $loginCookie = collect($callback->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === $sessionName);
+        self::assertNotNull($loginCookie);
+        self::assertNotSame($guestCookie->getValue(), $loginCookie->getValue());
+        self::assertTrue($loginCookie->isSecure());
+        self::assertTrue($loginCookie->isHttpOnly());
+        self::assertNull($loginCookie->getDomain());
+        self::assertSame('lax', $loginCookie->getSameSite());
+
+        Auth::forgetGuards();
+        app('session')->forgetDrivers();
+        $this->withUnencryptedCookie($sessionName, $loginCookie->getValue())
+            ->getJson('/api/session')
+            ->assertOk()
+            ->assertJsonPath('user.name', 'Session User')
+            ->assertJsonCount(1, 'workspaces');
+
+        $logout = $this->post('/logout')->assertRedirect('/');
+        $logoutCookie = collect($logout->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === $sessionName);
+        self::assertNotNull($logoutCookie);
+        Auth::forgetGuards();
+        app('session')->forgetDrivers();
+        $this->withUnencryptedCookie($sessionName, $logoutCookie->getValue())
+            ->getJson('/api/session')
+            ->assertUnauthorized();
+    }
+
+    public function test_successful_callback_redirects_to_configured_https_dashboard(): void
+    {
+        config(['app.url' => 'https://devguard-api-dev-01.onrender.com']);
+        Socialite::fake('github', SocialiteUser::fake([
+            'id' => 'github-https-1001',
+            'name' => 'HTTPS User',
+            'email' => 'https@example.test',
+        ]));
+
+        $this->get('http://devguard-api-dev-01.onrender.com/auth/github/callback')
+            ->assertRedirect('https://devguard-api-dev-01.onrender.com/dashboard');
+    }
+
     public function test_mutable_email_neither_merges_distinct_github_identities_nor_forks_one_identity(): void
     {
         $this->performCallback('github-user-a', 'shared@example.test', 'Identity A');
@@ -109,6 +166,19 @@ PHP;
             ->assertRedirect('/')
             ->assertSessionHas('oauth_error', 'github_authentication_failed');
 
+        $this->assertGuest();
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    public function test_real_github_provider_rejects_invalid_oauth_state(): void
+    {
+        config([
+            'services.github.client_id' => 'test-client-id',
+            'services.github.client_secret' => 'test-client-secret',
+        ]);
+
+        $this->get('/auth/github/redirect')->assertRedirectContains('github.com/login/oauth/authorize');
+        $this->get('/auth/github/callback?code=not-used&state=invalid')->assertRedirect('/');
         $this->assertGuest();
         $this->assertDatabaseCount('users', 0);
     }
