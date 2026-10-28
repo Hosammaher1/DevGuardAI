@@ -99,7 +99,7 @@ return [
             'sslmode' => env('DB_SSLMODE', env('APP_ENV') === 'production' ? 'require' : 'prefer'),
             'timezone' => 'UTC',
             'options' => array_filter([
-                PDO::ATTR_EMULATE_PREPARES => env('DB_EMULATE_PREPARES', true),
+                PDO::ATTR_EMULATE_PREPARES => env('DB_EMULATE_PREPARES', false),
             ]),
         ],
 
