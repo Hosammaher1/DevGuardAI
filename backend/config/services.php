@@ -1,5 +1,11 @@
 <?php
 
+$githubRedirect = env('GITHUB_REDIRECT_URI', '/auth/github/callback');
+// Resolve relative callbacks against the configured public origin, never request headers.
+if (str_starts_with($githubRedirect, '/')) {
+    $githubRedirect = rtrim(env('APP_URL', 'http://localhost'), '/').$githubRedirect;
+}
+
 return [
 
     /*
@@ -38,7 +44,7 @@ return [
     'github' => [
         'client_id' => env('GITHUB_CLIENT_ID'),
         'client_secret' => env('GITHUB_CLIENT_SECRET'),
-        'redirect' => env('GITHUB_REDIRECT_URI', '/auth/github/callback'),
+        'redirect' => $githubRedirect,
     ],
 
 ];

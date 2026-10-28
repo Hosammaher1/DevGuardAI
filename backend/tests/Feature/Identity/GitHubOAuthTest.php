@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as SocialiteUser;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 final class GitHubOAuthTest extends TestCase
@@ -23,6 +24,41 @@ final class GitHubOAuthTest extends TestCase
 
         $this->get('/login')->assertNotFound();
         $this->get('/auth/github-app/callback')->assertNotFound();
+    }
+
+    public function test_github_callback_uses_configured_https_origin_behind_render_proxy(): void
+    {
+        $script = <<<'PHP'
+require 'vendor/autoload.php';
+$app = require 'bootstrap/app.php';
+$request = \Illuminate\Http\Request::create(
+    getenv('TEST_REQUEST_URL'),
+    'GET', [], [], [], ['HTTP_X_FORWARDED_PROTO' => 'https', 'REMOTE_ADDR' => '198.51.100.10']
+);
+$response = $app->make(\Illuminate\Contracts\Http\Kernel::class)->handle($request);
+echo $response->headers->get('Location');
+PHP;
+
+        foreach ([
+            ['https://devguard-api-dev-01.onrender.com', 'http://devguard-api-dev-01.onrender.com/auth/github/redirect', 'https://devguard-api-dev-01.onrender.com/auth/github/callback'],
+            ['http://localhost', 'http://localhost/auth/github/redirect', 'http://localhost/auth/github/callback'],
+            ['https://devguard-api-dev-01.onrender.com', 'http://untrusted.example/auth/github/redirect', 'https://devguard-api-dev-01.onrender.com/auth/github/callback'],
+        ] as [$appUrl, $requestUrl, $expectedCallback]) {
+            $process = new Process([PHP_BINARY, '-r', $script], base_path(), [
+                'APP_ENV' => 'testing',
+                'APP_URL' => $appUrl,
+                'GITHUB_REDIRECT_URI' => '/auth/github/callback',
+                'GITHUB_CLIENT_ID' => 'test-client-id',
+                'GITHUB_CLIENT_SECRET' => 'test-client-secret',
+                'SESSION_DRIVER' => 'array',
+                'TEST_REQUEST_URL' => $requestUrl,
+            ]);
+            $process->run();
+            self::assertSame(0, $process->getExitCode(), $process->getOutput().$process->getErrorOutput());
+
+            parse_str((string) parse_url($process->getOutput(), PHP_URL_QUERY), $query);
+            self::assertSame($expectedCallback, $query['redirect_uri'] ?? null);
+        }
     }
 
     public function test_valid_callback_uses_stable_github_identity_and_creates_personal_workspace(): void
