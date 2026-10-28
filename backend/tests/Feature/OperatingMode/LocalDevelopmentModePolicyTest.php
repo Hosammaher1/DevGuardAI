@@ -6,6 +6,7 @@ use App\Domain\OperatingMode\LocalDevelopmentModePolicy;
 use App\Domain\OperatingMode\OperatingMode;
 use Illuminate\Support\Facades\Route;
 use LogicException;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 final class LocalDevelopmentModePolicyTest extends TestCase
@@ -57,6 +58,24 @@ final class LocalDevelopmentModePolicyTest extends TestCase
 
         $this->app['env'] = 'staging';
         self::assertThrows(fn () => LocalDevelopmentModePolicy::current(), LogicException::class);
+    }
+
+    public function test_production_package_discovery_runs_but_normal_artisan_boot_stays_denied(): void
+    {
+        $discovery = new Process([PHP_BINARY, 'artisan', 'package:discover', '--no-ansi'], base_path(), [
+            'APP_ENV' => 'production',
+            'APP_DEBUG' => 'false',
+        ]);
+        $discovery->run();
+        self::assertSame(0, $discovery->getExitCode(), $discovery->getOutput().$discovery->getErrorOutput());
+
+        $runtime = new Process([PHP_BINARY, 'artisan', 'route:list', '--no-ansi'], base_path(), [
+            'APP_ENV' => 'production',
+            'APP_DEBUG' => 'false',
+        ]);
+        $runtime->run();
+        self::assertNotSame(0, $runtime->getExitCode());
+        self::assertStringContainsString('operating_mode_environment_denied', $runtime->getOutput().$runtime->getErrorOutput());
     }
 
     public function test_unknown_or_missing_mode_fails_closed(): void

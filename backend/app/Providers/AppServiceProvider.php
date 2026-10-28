@@ -20,6 +20,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Composer rebuilds package metadata before the production runtime is configured.
+        if ($this->app->runningConsoleCommand('package:discover')) {
+            return;
+        }
+
         LocalDevelopmentModePolicy::current();
     }
 }
