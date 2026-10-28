@@ -2,10 +2,16 @@ import React, { useState, useEffect } from 'react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [sessionStatus, setSessionStatus] = useState('checking');
+  const [sessionStatus, setSessionStatus] = useState('checking'); // checking, guest, authenticated, error
+  const [isDemoSession, setIsDemoSession] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspace, setActiveWorkspace] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, scans, repos, fixes, usage, notifications
+  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, scans, fixes, projects, repos, usage, notifications
+
+  // Demo Login State
+  const [invitationCode, setInvitationCode] = useState('');
+  const [authError, setAuthError] = useState(null);
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
 
   // Workspace Data
   const [metrics, setMetrics] = useState({
@@ -19,6 +25,7 @@ export default function App() {
   const [scans, setScans] = useState([]);
   const [currentScan, setCurrentScan] = useState(null);
   const [selectedTest, setSelectedTest] = useState(null);
+  const [projects, setProjects] = useState([]);
   const [repositories, setRepositories] = useState([]);
   const [fixPlans, setFixPlans] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -30,7 +37,6 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanStep, setScanStep] = useState('');
   const [filter, setFilter] = useState('all'); // all, failed, passed
-  const [activeScreenshotUrl, setActiveScreenshotUrl] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
   const [isProcessingFix, setIsProcessingFix] = useState(false);
 
@@ -46,6 +52,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setCurrentUser(data.user);
+        setIsDemoSession(Boolean(data.is_demo));
         setSessionStatus('authenticated');
         const wsList = data.workspaces || [];
         setWorkspaces(wsList);
@@ -58,6 +65,7 @@ export default function App() {
         setCurrentUser(null);
         setWorkspaces([]);
         setActiveWorkspace(null);
+        setIsDemoSession(false);
         setSessionStatus(res.status === 401 ? 'guest' : 'error');
       }
     } catch (err) {
@@ -70,7 +78,7 @@ export default function App() {
     if (!workspaceId) return;
     try {
       // 1. Metrics & Latest Scan
-      const mRes = await fetch(`/workspaces/${workspaceId}/metrics`);
+      const mRes = await fetch(`/workspaces/${workspaceId}/metrics`, { credentials: 'same-origin' });
       if (mRes.ok) {
         const mData = await mRes.json();
         if (mData.metrics) setMetrics(mData.metrics);
@@ -82,35 +90,46 @@ export default function App() {
       }
 
       // 2. Scans History
-      const sRes = await fetch(`/workspaces/${workspaceId}/scans`);
+      const sRes = await fetch(`/workspaces/${workspaceId}/scans`, { credentials: 'same-origin' });
       if (sRes.ok) {
         const sData = await sRes.json();
         setScans(sData.scans || []);
       }
 
-      // 3. Repositories
-      const rRes = await fetch(`/workspaces/${workspaceId}/repositories`);
+      // 3. Projects & Targets
+      const pRes = await fetch(`/workspaces/${workspaceId}/projects`, { credentials: 'same-origin' });
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setProjects(pData.projects || []);
+      }
+
+      // 4. Repositories
+      const rRes = await fetch(`/workspaces/${workspaceId}/repositories`, { credentials: 'same-origin' });
       if (rRes.ok) {
         const rData = await rRes.json();
         setRepositories(rData.repositories || []);
       }
 
-      // 4. Fix Plans
-      const fRes = await fetch(`/workspaces/${workspaceId}/fix-plans`);
+      // 5. Fix Plans
+      const fRes = await fetch(`/workspaces/${workspaceId}/fix-plans`, { credentials: 'same-origin' });
       if (fRes.ok) {
         const fData = await fRes.json();
-        setFixPlans(fData.fix_plans || []);
+        const list = fData.fix_plans || [];
+        setFixPlans(list);
+        if (list.length > 0 && !selectedPlan) {
+          setSelectedPlan(list[0]);
+        }
       }
 
-      // 5. Usage & Health
-      const uRes = await fetch(`/workspaces/${workspaceId}/usage`);
+      // 6. Usage & Health
+      const uRes = await fetch(`/workspaces/${workspaceId}/usage`, { credentials: 'same-origin' });
       if (uRes.ok) {
         const uData = await uRes.json();
         setUsageData(uData);
       }
 
-      // 6. Notifications
-      const nRes = await fetch(`/workspaces/${workspaceId}/notifications`);
+      // 7. Notifications
+      const nRes = await fetch(`/workspaces/${workspaceId}/notifications`, { credentials: 'same-origin' });
       if (nRes.ok) {
         const nData = await nRes.json();
         setNotifications(nData.notifications || []);
@@ -121,39 +140,111 @@ export default function App() {
     }
   };
 
+  const handleDemoLogin = async (e) => {
+    e.preventDefault();
+    const code = invitationCode.trim();
+    if (!code) {
+      setAuthError('Please enter an invitation code.');
+      return;
+    }
+
+    setAuthError(null);
+    setIsSubmittingCode(true);
+
+    try {
+      const res = await fetch('/auth/demo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ invitation_code: code }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setCurrentUser(data.user);
+        setIsDemoSession(true);
+        setSessionStatus('authenticated');
+        if (data.workspace) {
+          setWorkspaces([data.workspace]);
+          setActiveWorkspace(data.workspace);
+          loadWorkspaceData(data.workspace.id);
+        } else {
+          checkSession();
+        }
+      } else {
+        setAuthError(data.message || 'Invalid or expired invitation code.');
+      }
+    } catch (err) {
+      setAuthError('Connection error while authenticating. Please try again.');
+    } finally {
+      setIsSubmittingCode(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/logout', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'same-origin',
+      });
+    } catch (err) {
+      console.warn('Logout network error:', err);
+    } finally {
+      setCurrentUser(null);
+      setWorkspaces([]);
+      setActiveWorkspace(null);
+      setIsDemoSession(false);
+      setSessionStatus('guest');
+      setInvitationCode('');
+      setAuthError(null);
+    }
+  };
+
   const handleRunScan = async () => {
     if (!activeWorkspace || isScanning) return;
     setIsScanning(true);
     setActionMessage(null);
 
-    // Pick first connected repository or fallback
     const repoId = repositories[0]?.id;
     if (!repoId) {
-      alert('Please connect a repository first before starting a scan.');
+      setActionMessage({ type: 'warning', text: 'Please connect a repository first before starting a scan.' });
       setIsScanning(false);
       return;
     }
 
     try {
-      setScanStep('Executing Playwright E2E and Security Scan in isolation...');
+      setScanStep('Dispatching scan task to execution runner...');
       const res = await fetch(`/workspaces/${activeWorkspace.id}/scans`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ repository_id: repoId, trigger: 'manual' }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        const data = await res.json();
         setCurrentScan(data.scan);
         loadWorkspaceData(activeWorkspace.id);
         const failed = data.scan.test_results?.find(t => t.status === 'failed');
         setSelectedTest(failed || data.scan.test_results?.[0] || null);
         setActionMessage({ type: 'success', text: `Scan #${data.scan.id.slice(-6)} completed successfully!` });
+      } else if (res.status === 503) {
+        setActionMessage({
+          type: 'warning',
+          text: 'Runner Isolation Policy Active: Live Playwright browser execution is disabled on Render Free to prevent untrusted execution on the control plane. Explore the persisted sample scans, test failures, and AI fix plans below.',
+        });
       } else {
-        const errData = await res.json().catch(() => ({}));
         setActionMessage({
           type: 'danger',
-          text: `Scan failed (${res.status}): ${errData.message || errData.reason || res.statusText}`,
+          text: `Scan request rejected (${res.status}): ${data.message || data.reason || 'Operation failed'}`,
         });
       }
     } catch (err) {
@@ -164,101 +255,121 @@ export default function App() {
     }
   };
 
-  // Propose Fix Plan
   const handleProposeFix = async () => {
     if (!activeWorkspace || !currentScan) return;
     setIsProcessingFix(true);
+    setActionMessage(null);
+
     try {
       const res = await fetch(`/workspaces/${activeWorkspace.id}/scans/${currentScan.id}/fix-plans`, {
         method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
       });
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        const data = await res.json();
         setSelectedPlan(data.fix_plan);
         setActiveTab('fixes');
         loadWorkspaceData(activeWorkspace.id);
         setActionMessage({ type: 'success', text: 'AI Fix Plan created! Ready for review and approval.' });
       } else {
-        const err = await res.json();
-        alert('Could not propose fix: ' + (err.reason || err.error));
+        setActionMessage({ type: 'danger', text: 'Could not propose fix: ' + (data.reason || data.error || data.message) });
       }
     } catch (err) {
-      alert('Error proposing fix: ' + err.message);
+      setActionMessage({ type: 'danger', text: 'Error proposing fix: ' + err.message });
     } finally {
       setIsProcessingFix(false);
     }
   };
 
-  // Approve Fix Plan
   const handleApprovePlan = async (planId) => {
     if (!activeWorkspace) return;
     setIsProcessingFix(true);
+    setActionMessage(null);
+
     try {
       const res = await fetch(`/workspaces/${activeWorkspace.id}/fix-plans/${planId}/approvals`, {
         method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
       });
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        const data = await res.json();
         setSelectedPlan(data.fix_plan);
         loadWorkspaceData(activeWorkspace.id);
         setActionMessage({ type: 'success', text: 'Fix Plan approved! Ready for isolated patch verification.' });
       } else {
-        const err = await res.json();
-        alert('Approval failed: ' + (err.reason || err.error));
+        setActionMessage({ type: 'danger', text: 'Approval failed: ' + (data.reason || data.error || data.message) });
       }
     } catch (err) {
-      alert('Error approving fix: ' + err.message);
+      setActionMessage({ type: 'danger', text: 'Error approving fix: ' + err.message });
     } finally {
       setIsProcessingFix(false);
     }
   };
 
-  // Verify Patch
   const handleVerifyPlan = async (planId) => {
     if (!activeWorkspace) return;
     setIsProcessingFix(true);
+    setActionMessage(null);
+
     try {
       const res = await fetch(`/workspaces/${activeWorkspace.id}/fix-plans/${planId}/verify`, {
         method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
       });
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        const data = await res.json();
         setSelectedPlan(data.fix_plan);
         loadWorkspaceData(activeWorkspace.id);
         setActionMessage({ type: 'success', text: 'Patch verified in fresh isolation! Ready to publish Draft PR.' });
       } else {
-        const err = await res.json();
-        alert('Verification failed: ' + (err.reason || err.error));
+        setActionMessage({ type: 'danger', text: 'Verification check failed: ' + (data.reason || data.error || data.message) });
       }
     } catch (err) {
-      alert('Error verifying patch: ' + err.message);
+      setActionMessage({ type: 'danger', text: 'Error verifying patch: ' + err.message });
     } finally {
       setIsProcessingFix(false);
     }
   };
 
-  // Publish Draft PR
   const handlePublishPr = async (planId) => {
     if (!activeWorkspace) return;
     setIsProcessingFix(true);
+    setActionMessage(null);
+
     try {
       const res = await fetch(`/workspaces/${activeWorkspace.id}/fix-plans/${planId}/publish-pr`, {
         method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
       });
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        const data = await res.json();
         setSelectedPlan(data.plan);
         loadWorkspaceData(activeWorkspace.id);
         setActionMessage({
           type: 'success',
           text: `Draft PR #${data.pr_number} created on GitHub! Branch: ${data.branch}`,
         });
+      } else if (res.status === 403 && data.error === 'demo_read_only') {
+        setActionMessage({
+          type: 'warning',
+          text: 'Protective Policy: GitHub Draft PR creation is disabled in the shared demo environment to prevent automated changes to external repositories.',
+        });
       } else {
-        const err = await res.json();
-        alert('PR publication failed: ' + (err.reason || err.error));
+        setActionMessage({
+          type: 'danger',
+          text: 'PR publication failed: ' + (data.message || data.reason || data.error || 'Operation denied'),
+        });
       }
     } catch (err) {
-      alert('Error publishing PR: ' + err.message);
+      setActionMessage({ type: 'danger', text: 'Error publishing PR: ' + err.message });
     } finally {
       setIsProcessingFix(false);
     }
@@ -270,27 +381,130 @@ export default function App() {
     return true;
   }) || [];
 
+  // ==========================================
+  // VIEW: GUEST / DEMO LOGIN
+  // ==========================================
   if (sessionStatus !== 'authenticated') {
     return (
-      <main style={{ minHeight: '100vh', display: 'grid', placeContent: 'center', textAlign: 'center', gap: '1rem' }}>
-        <h1>DevGuard AI</h1>
-        {sessionStatus === 'checking' && <p>Checking session...</p>}
-        {sessionStatus === 'guest' && (
-          <>
-            <p>Sign in to access your dashboard.</p>
-            <a href="/auth/github/redirect">Sign in with GitHub</a>
-          </>
-        )}
-        {sessionStatus === 'error' && (
-          <>
-            <p>Could not verify your session.</p>
-            <button onClick={checkSession}>Retry</button>
-          </>
-        )}
+      <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle at 50% 20%, #1e293b 0%, #090d16 100%)', padding: '1.5rem' }}>
+        <div style={{ maxWidth: '440px', width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '2.5rem 2rem', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+          {/* BRAND HEADER */}
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ width: '56px', height: '56px', margin: '0 auto 1rem', borderRadius: '12px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', boxShadow: '0 8px 20px var(--primary-glow)' }}>
+              🛡️
+            </div>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em', marginBottom: '0.25rem' }}>
+              DevGuard AI
+            </h1>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Autonomous Software Quality & Security Platform
+            </p>
+          </div>
+
+          {/* CHECKING STATE */}
+          {sessionStatus === 'checking' && (
+            <div style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.9rem', padding: '1rem' }}>
+              Verifying active session...
+            </div>
+          )}
+
+          {/* DEMO INVITATION FORM */}
+          {sessionStatus !== 'checking' && (
+            <div>
+              <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', padding: '0.9rem 1rem', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Interactive Demo Access
+                </div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Enter your invitation code to access the isolated live preview.
+                </div>
+              </div>
+
+              {authError && (
+                <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: '6px', padding: '0.75rem', marginBottom: '1rem', color: 'var(--text-main)', fontSize: '0.84rem' }}>
+                  {authError}
+                </div>
+              )}
+
+              <form onSubmit={handleDemoLogin} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div>
+                  <label htmlFor="invitation_code" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '0.35rem' }}>
+                    Invitation Code
+                  </label>
+                  <input
+                    id="invitation_code"
+                    type="password"
+                    value={invitationCode}
+                    onChange={(e) => setInvitationCode(e.target.value)}
+                    placeholder="Enter invitation code"
+                    autoFocus
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      background: '#090d16',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      color: '#fff',
+                      fontSize: '0.9rem',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingCode}
+                  style={{
+                    background: isSubmittingCode ? 'var(--border-color)' : 'var(--primary)',
+                    color: '#fff',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '6px',
+                    fontWeight: 700,
+                    fontSize: '0.92rem',
+                    boxShadow: isSubmittingCode ? 'none' : '0 4px 12px var(--primary-glow)',
+                    cursor: isSubmittingCode ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {isSubmittingCode ? 'Authenticating...' : 'Enter Demo →'}
+                </button>
+              </form>
+
+              {/* SECONDARY GITHUB OAUTH OPTION */}
+              <div style={{ marginTop: '2rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Developer Access
+                </div>
+                <a
+                  href="/auth/github/redirect"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.86rem',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    textDecoration: 'none',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  <span>Sign in with GitHub ↗</span>
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
     );
   }
 
+  // ==========================================
+  // VIEW: AUTHENTICATED DEMO WORKSPACE
+  // ==========================================
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }}>
       {/* SIDEBAR NAVIGATION */}
@@ -307,12 +521,19 @@ export default function App() {
           </div>
         </div>
 
-        {/* WORKSPACE SELECTOR */}
+        {/* WORKSPACE SELECTOR & DEMO BADGE */}
         <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border-color)', background: 'rgba(59, 130, 246, 0.05)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Active Workspace</div>
-          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Active Workspace</div>
+            {isDemoSession && (
+              <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--warning-bg)', color: 'var(--warning)', fontWeight: 800 }}>
+                DEMO PREVIEW
+              </span>
+            )}
+          </div>
+          <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)' }}></span>
-            {activeWorkspace ? activeWorkspace.name : 'No workspace available'}
+            {activeWorkspace ? activeWorkspace.name : 'Demo Workspace'}
           </div>
         </div>
 
@@ -322,6 +543,7 @@ export default function App() {
             { id: 'dashboard', label: 'Dashboard', icon: '📊' },
             { id: 'scans', label: 'Scans & Reports', icon: '🔬', badge: scans.length },
             { id: 'fixes', label: 'AI Fix Plans', icon: '⚡', badge: fixPlans.length },
+            { id: 'projects', label: 'Projects & Targets', icon: '📁', badge: projects.length },
             { id: 'repos', label: 'Repositories', icon: '📦', badge: repositories.length },
             { id: 'usage', label: 'Credits & Usage', icon: '💳' },
             { id: 'notifications', label: 'Notifications', icon: '🔔', badge: unreadNotifications },
@@ -356,18 +578,35 @@ export default function App() {
           ))}
         </nav>
 
-        {/* USER PROFILE */}
-        <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 600 }}>
-              {currentUser ? currentUser.name?.[0]?.toUpperCase() : 'U'}
+        {/* USER PROFILE & LOGOUT */}
+        <div style={{ padding: '0.9rem 1.1rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 600, flexShrink: 0 }}>
+              {currentUser ? currentUser.name?.[0]?.toUpperCase() : 'D'}
             </div>
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                {currentUser ? currentUser.name : 'Authenticated User'}
+                {currentUser ? currentUser.name : 'Demo Visitor'}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                {isDemoSession ? 'Demo Access' : 'Authenticated'}
               </div>
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            title="Sign out"
+            style={{
+              padding: '4px 8px',
+              borderRadius: '4px',
+              background: 'var(--border-color)',
+              color: 'var(--text-muted)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+            }}
+          >
+            Logout
+          </button>
         </div>
       </aside>
 
@@ -405,16 +644,28 @@ export default function App() {
               }}
             >
               <span>{isScanning ? '⏳' : '▶'}</span>
-              <span>{isScanning ? 'Running Suite...' : 'Trigger Scan'}</span>
+              <span>{isScanning ? 'Dispatching...' : 'Trigger Scan'}</span>
             </button>
           </div>
         </header>
 
         {/* FEEDBACK BANNER */}
         {actionMessage && (
-          <div style={{ margin: '1rem 2rem 0', padding: '0.75rem 1.25rem', borderRadius: '6px', background: actionMessage.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)', border: `1px solid ${actionMessage.type === 'success' ? 'var(--success)' : 'var(--danger)'}`, color: 'var(--text-main)', fontSize: '0.88rem', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{
+            margin: '1rem 2rem 0',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '6px',
+            background: actionMessage.type === 'success' ? 'var(--success-bg)' : actionMessage.type === 'warning' ? 'var(--warning-bg)' : 'var(--danger-bg)',
+            border: `1px solid ${actionMessage.type === 'success' ? 'var(--success)' : actionMessage.type === 'warning' ? 'var(--warning)' : 'var(--danger)'}`,
+            color: 'var(--text-main)',
+            fontSize: '0.88rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            lineHeight: 1.5,
+          }}>
             <span>{actionMessage.text}</span>
-            <button onClick={() => setActionMessage(null)} style={{ color: 'var(--text-dim)', fontWeight: 'bold' }}>✕</button>
+            <button onClick={() => setActionMessage(null)} style={{ color: 'var(--text-dim)', fontWeight: 'bold', marginLeft: '1rem' }}>✕</button>
           </div>
         )}
 
@@ -533,18 +784,20 @@ export default function App() {
                           <div style={{ background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase' }}>
-                                🤖 AI Diagnostic Engine ({selectedTest.ai_analysis.failure_category})
+                                🤖 AI Diagnostic Engine ({selectedTest.ai_analysis.failure_category || 'Automated Diagnosis'})
                               </span>
                               <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                                Confidence: {(selectedTest.ai_analysis.confidence_score * 100).toFixed(0)}%
+                                Confidence: {Math.round((selectedTest.ai_analysis.confidence || selectedTest.ai_analysis.confidence_score || 0.9) * 100)}%
                               </span>
                             </div>
                             <p style={{ fontSize: '0.86rem', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: '8px' }}>
                               <strong>Root Cause:</strong> {selectedTest.ai_analysis.root_cause}
                             </p>
-                            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                              <strong>Actionable Fix:</strong> {selectedTest.ai_analysis.suggested_fix}
-                            </p>
+                            {selectedTest.ai_analysis.suggested_fix && (
+                              <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '8px' }}>
+                                <strong>Actionable Fix:</strong> {selectedTest.ai_analysis.suggested_fix}
+                              </p>
+                            )}
                             {selectedTest.ai_analysis.code_patch && (
                               <pre style={{ background: '#090d16', padding: '0.75rem', borderRadius: '4px', marginTop: '8px', fontSize: '0.78rem', color: '#38bdf8', overflowX: 'auto', fontFamily: 'var(--font-mono)' }}>
                                 {selectedTest.ai_analysis.code_patch}
@@ -640,30 +893,34 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.25rem' }}>
                 <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1rem', height: '600px', overflowY: 'auto' }}>
                   <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>AI Fix Plans</h3>
-                  {fixPlans.map(p => (
-                    <div
-                      key={p.id}
-                      onClick={() => setSelectedPlan(p)}
-                      style={{
-                        padding: '0.75rem',
-                        borderRadius: '6px',
-                        background: selectedPlan?.id === p.id ? 'var(--border-color)' : 'transparent',
-                        border: `1px solid ${selectedPlan?.id === p.id ? 'var(--border-active)' : 'transparent'}`,
-                        cursor: 'pointer',
-                        marginBottom: '6px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>{p.title}</span>
-                        <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '3px', background: p.status === 'published' ? 'var(--success-bg)' : 'var(--purple-bg)', color: p.status === 'published' ? 'var(--success)' : 'var(--purple)', fontWeight: 700 }}>
-                          {p.status.toUpperCase()}
-                        </span>
+                  {fixPlans.length === 0 ? (
+                    <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No fix plans created yet. Propose one from a failed scan.</div>
+                  ) : (
+                    fixPlans.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedPlan(p)}
+                        style={{
+                          padding: '0.75rem',
+                          borderRadius: '6px',
+                          background: selectedPlan?.id === p.id ? 'var(--border-color)' : 'transparent',
+                          border: `1px solid ${selectedPlan?.id === p.id ? 'var(--border-active)' : 'transparent'}`,
+                          cursor: 'pointer',
+                          marginBottom: '6px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>{p.title}</span>
+                          <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '3px', background: p.status === 'published' ? 'var(--success-bg)' : 'var(--purple-bg)', color: p.status === 'published' ? 'var(--success)' : 'var(--purple)', fontWeight: 700 }}>
+                            {p.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '4px' }}>
+                          Required Credits: {p.fix_credits_required} Fix credit
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-                        Required Credits: {p.fix_credits_required} Fix credit
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem', height: '600px', overflowY: 'auto' }}>
@@ -683,7 +940,7 @@ export default function App() {
                               disabled={isProcessingFix}
                               style={{ background: 'var(--primary)', color: '#fff', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}
                             >
-                              Approve Fix (1 Fix Credit)
+                              {isProcessingFix ? 'Approving...' : 'Approve Fix (1 Credit)'}
                             </button>
                           )}
                           {selectedPlan.status === 'approved' && (
@@ -692,7 +949,7 @@ export default function App() {
                               disabled={isProcessingFix}
                               style={{ background: 'var(--purple)', color: '#fff', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}
                             >
-                              Verify Patch in Fresh Isolation
+                              {isProcessingFix ? 'Verifying...' : 'Verify Patch in Fresh Isolation'}
                             </button>
                           )}
                           {selectedPlan.status === 'verified' && (
@@ -701,7 +958,7 @@ export default function App() {
                               disabled={isProcessingFix}
                               style={{ background: 'var(--success)', color: '#fff', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}
                             >
-                              Publish Verified Draft PR
+                              {isProcessingFix ? 'Publishing...' : 'Publish Verified Draft PR'}
                             </button>
                           )}
                           {selectedPlan.status === 'published' && selectedPlan.pr_url && (
@@ -745,7 +1002,60 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: REPOSITORIES */}
+          {/* TAB 4: PROJECTS & TARGETS */}
+          {activeTab === 'projects' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>Configured Projects</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                  Target projects monitored by autonomous security and end-to-end regression suites.
+                </p>
+
+                {projects.length === 0 ? (
+                  <div style={{ color: 'var(--text-dim)', fontSize: '0.88rem' }}>No projects configured yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {projects.map(proj => (
+                      <div key={proj.id} style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>{proj.name}</div>
+                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '4px' }}>{proj.description}</div>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: 'var(--success-bg)', color: 'var(--success)', fontWeight: 700 }}>
+                            {proj.status.toUpperCase()}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', fontSize: '0.78rem', color: 'var(--text-dim)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
+                          <div>Framework: <strong style={{ color: 'var(--text-main)' }}>{proj.framework || 'React'}</strong></div>
+                          <div>Default Branch: <strong style={{ color: 'var(--text-main)' }}>{proj.default_branch || 'main'}</strong></div>
+                          <div>Repository: <strong style={{ color: 'var(--text-main)' }}>{proj.repository?.full_name || 'trusted-demo'}</strong></div>
+                        </div>
+
+                        {/* TARGET AUTHORIZATIONS */}
+                        {proj.target_authorizations && proj.target_authorizations.length > 0 && (
+                          <div style={{ marginTop: '1rem', background: '#090d16', padding: '0.85rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>Authorized Deployment Target</div>
+                            {proj.target_authorizations.map(tgt => (
+                              <div key={tgt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ fontSize: '0.84rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>{tgt.target_url}</div>
+                                <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--success-bg)', color: 'var(--success)', fontWeight: 700 }}>
+                                  {tgt.environment.toUpperCase()} • {tgt.status.toUpperCase()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: REPOSITORIES */}
           {activeTab === 'repos' && (
             <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>Connected Repositories</h3>
@@ -765,23 +1075,23 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: USAGE & CREDITS */}
+          {/* TAB 6: USAGE & CREDITS */}
           {activeTab === 'usage' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem' }}>
               <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>Scan Credits</h3>
                 <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)' }}>
-                  {usageData?.usage?.scan_credits?.available ?? 10} / 10
+                  {usageData?.usage?.scan_credits?.available ?? 50} / 50
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-                  {usageData?.usage?.scan_credits?.consumed ?? 0} consumed this period.
+                  {usageData?.usage?.scan_credits?.consumed ?? 1} consumed this period.
                 </div>
               </div>
 
               <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>Fix Credits</h3>
                 <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--purple)' }}>
-                  {usageData?.usage?.fix_credits?.available ?? 5} / 5
+                  {usageData?.usage?.fix_credits?.available ?? 20} / 20
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '4px' }}>
                   {usageData?.usage?.fix_credits?.consumed ?? 0} consumed this period.
@@ -804,7 +1114,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: NOTIFICATIONS */}
+          {/* TAB 7: NOTIFICATIONS */}
           {activeTab === 'notifications' && (
             <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>Notifications</h3>

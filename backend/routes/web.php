@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Artifacts\ArtifactController;
+use App\Http\Controllers\Auth\DemoAuthController;
 use App\Http\Controllers\Auth\GitHubOAuthController;
 use App\Http\Controllers\Auth\SessionController;
 use App\Http\Controllers\Fixes\FixPlanController;
@@ -44,14 +45,21 @@ Route::get('/', function () {
 Route::post('/webhooks/github', [GitHubWebhookController::class, 'handle'])
     ->name('webhooks.github');
 
+Route::get('/api/csrf-token', function () {
+    return response()->json(['csrf_token' => csrf_token()]);
+})->name('api.csrf-token');
+
+Route::post('/auth/demo', [DemoAuthController::class, 'login'])
+    ->middleware('throttle:5,1')
+    ->name('auth.demo.login');
+
 Route::get('/auth/github/redirect', [GitHubOAuthController::class, 'redirect'])
     ->middleware('guest')
     ->name('auth.github.redirect');
 Route::get('/auth/github/callback', [GitHubOAuthController::class, 'callback'])
     ->middleware('guest')
     ->name('auth.github.callback');
-Route::post('/logout', [GitHubOAuthController::class, 'logout'])
-    ->middleware('auth')
+Route::post('/logout', [DemoAuthController::class, 'logout'])
     ->name('logout');
 
 Route::get('/dashboard', function () {
@@ -62,7 +70,7 @@ Route::get('/dashboard', function () {
     return response('DevGuard AI');
 })->name('dashboard');
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', 'demo.restrictions'])->group(function (): void {
     Route::get('/api/session', [SessionController::class, 'show'])->name('api.session');
     Route::post('/artifacts/{artifact}/access-links', [ArtifactController::class, 'createAccessLink'])->whereUlid('artifact');
     Route::get('/artifacts/{artifact}/content', [ArtifactController::class, 'content'])->whereUlid('artifact');

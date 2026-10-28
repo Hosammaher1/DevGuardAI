@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnforceDemoRestrictions;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(fn () => null);
+        $middleware->validateCsrfTokens(except: [
+            '/webhooks/github',
+        ]);
+        $middleware->alias([
+            'demo.restrictions' => EnforceDemoRestrictions::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

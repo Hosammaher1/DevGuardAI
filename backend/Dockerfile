@@ -16,6 +16,7 @@ RUN apk add --no-cache \
     libzip-dev \
     curl \
     unzip \
+    nodejs \
     && docker-php-ext-install -j$(nproc) \
     pdo_pgsql \
     pgsql \

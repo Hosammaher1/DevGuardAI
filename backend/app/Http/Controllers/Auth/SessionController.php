@@ -48,8 +48,10 @@ final class SessionController extends Controller
             'user' => [
                 'id' => $user->getKey(),
                 'name' => $user->name,
+                'email' => $user->email,
             ],
             'workspaces' => $workspacesData,
+            'is_demo' => (bool) $request->session()->get('is_demo_session', false),
         ])->header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     }
 }

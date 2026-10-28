@@ -1,4 +1,4 @@
-﻿# Security / secrets
+# Security / secrets
 .env
 .env.*
 !.env.example
@@ -61,3 +61,5 @@ coverage/
 .idea/
 .vscode/*.code-workspace
 .neon
+.vite/
+.agents/mcp_config.json
