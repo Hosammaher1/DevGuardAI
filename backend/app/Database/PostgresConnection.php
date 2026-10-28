@@ -48,6 +48,7 @@ class PostgresConnection extends BasePostgresConnection
                     is_bool($value) => PDO::PARAM_BOOL,
                     is_int($value) => PDO::PARAM_INT,
                     is_resource($value) => PDO::PARAM_LOB,
+                    is_null($value) => PDO::PARAM_NULL,
                     default => PDO::PARAM_STR,
                 },
             );

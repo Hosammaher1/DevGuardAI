@@ -98,9 +98,9 @@ return [
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', env('APP_ENV') === 'production' ? 'require' : 'prefer'),
             'timezone' => 'UTC',
-            'options' => array_filter([
-                PDO::ATTR_EMULATE_PREPARES => env('DB_EMULATE_PREPARES', false),
-            ]),
+            'options' => [
+                PDO::ATTR_EMULATE_PREPARES => filter_var(env('DB_EMULATE_PREPARES', true), FILTER_VALIDATE_BOOLEAN),
+            ],
         ],
 
         'sqlsrv' => [

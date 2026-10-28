@@ -59,17 +59,16 @@ final class DemoAuthController extends Controller
                 'is_demo' => false,
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Staging login error: ' . $e->getMessage(), [
+            \Illuminate\Support\Facades\Log::error('Staging login error', [
                 'exception' => get_class($e),
+                'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
 
             return response()->json([
                 'error' => 'server_error',
-                'message' => 'Login error: ' . $e->getMessage(),
-                'exception' => get_class($e),
-                'location' => basename($e->getFile()) . ':' . $e->getLine(),
+                'message' => 'An unexpected error occurred during staging authentication. Please try again later.',
             ], 500);
         }
     }
