@@ -60,3 +60,4 @@ coverage/
 # Local tooling
 .idea/
 .vscode/*.code-workspace
+.neon

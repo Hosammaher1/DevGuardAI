@@ -1,6 +1,5 @@
 <?php
 
-use App\Domain\Identity\Role;
 use App\Http\Controllers\Artifacts\ArtifactController;
 use App\Http\Controllers\Auth\GitHubOAuthController;
 use App\Http\Controllers\Auth\SessionController;
@@ -13,9 +12,7 @@ use App\Http\Controllers\Notifications\NotificationController;
 use App\Http\Controllers\Projects\ProjectController;
 use App\Http\Controllers\Scans\ScanController;
 use App\Http\Controllers\Usage\UsageController;
-use App\Models\Membership;
-use App\Models\User;
-use App\Models\Workspace;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -25,6 +22,16 @@ Route::get('/health', function () {
         'timestamp' => now()->toIso8601String(),
     ]);
 });
+
+Route::get('/ready', function () {
+    try {
+        DB::select('select 1');
+    } catch (Throwable) {
+        return response()->json(['status' => 'unavailable', 'database' => 'disconnected'], 503);
+    }
+
+    return response()->json(['status' => 'ready', 'database' => 'connected']);
+})->name('health.ready');
 
 Route::get('/', function () {
     if (file_exists(public_path('index.html'))) {

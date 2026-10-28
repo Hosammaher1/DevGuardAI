@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix frontend run build && node scripts/copy-frontend.mjs",
+    "start": "node --env-file=.env.local scripts/neon-php.mjs serve --host=127.0.0.1 --port=8087",
+    "db:migrate": "node --env-file=.env.local scripts/neon-php.mjs migrate --force",
+    "db:status": "node --env-file=.env.local scripts/neon-php.mjs migrate:status",
+    "test:neon": "node --test scripts/neon-php.test.mjs"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.5",
+    "@neon/env": "^1.6.6"
+  }
+}
