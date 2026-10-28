@@ -17,23 +17,23 @@ final class DemoAuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
-        $code = trim((string) $request->input('invitation_code', ''));
-
-        if ($code === '') {
-            return response()->json([
-                'error' => 'missing_code',
-                'message' => 'Please enter a valid demo invitation code.',
-            ], 422);
-        }
-
-        if (! $this->verifyInvitationCode($code)) {
-            return response()->json([
-                'error' => 'invalid_code',
-                'message' => 'The invitation code you entered is invalid or expired.',
-            ], 401);
-        }
-
         try {
+            $code = trim((string) $request->input('invitation_code', ''));
+
+            if ($code === '') {
+                return response()->json([
+                    'error' => 'missing_code',
+                    'message' => 'Please enter a valid invitation code.',
+                ], 422);
+            }
+
+            if (! $this->verifyInvitationCode($code)) {
+                return response()->json([
+                    'error' => 'invalid_code',
+                    'message' => 'The invitation code you entered is invalid or expired.',
+                ], 401);
+            }
+
             $provisioned = $this->provisioner->provision();
             $user = $provisioned['user'];
             $workspace = $provisioned['workspace'];
@@ -59,7 +59,7 @@ final class DemoAuthController extends Controller
                 'is_demo' => false,
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Staging login provisioning error: ' . $e->getMessage(), [
+            \Illuminate\Support\Facades\Log::error('Staging login error: ' . $e->getMessage(), [
                 'exception' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -67,7 +67,9 @@ final class DemoAuthController extends Controller
 
             return response()->json([
                 'error' => 'server_error',
-                'message' => 'Unable to initialize staging session: ' . $e->getMessage(),
+                'message' => 'Login error: ' . $e->getMessage(),
+                'exception' => get_class($e),
+                'location' => basename($e->getFile()) . ':' . $e->getLine(),
             ], 500);
         }
     }
