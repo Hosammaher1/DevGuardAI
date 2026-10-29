@@ -20,7 +20,9 @@ final class GitHubOAuthController extends Controller
 {
     public function redirect(): RedirectResponse
     {
-        return Socialite::driver('github')->redirect();
+        return Socialite::driver('github')
+            ->scopes(['read:user', 'user:email', 'repo'])
+            ->redirect();
     }
 
     public function callback(Request $request): RedirectResponse
@@ -86,6 +88,16 @@ final class GitHubOAuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+
+        if (! empty($githubUser->token)) {
+            $request->session()->put('github_oauth_token', $githubUser->token);
+        }
+        if (! empty($githubUser->getNickname())) {
+            $request->session()->put('github_nickname', $githubUser->getNickname());
+        }
+        if (! empty($githubUser->getAvatar())) {
+            $request->session()->put('github_avatar_url', $githubUser->getAvatar());
+        }
 
         return redirect($this->appUrl('/dashboard'));
     }

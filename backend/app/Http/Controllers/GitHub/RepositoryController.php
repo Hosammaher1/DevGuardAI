@@ -20,6 +20,95 @@ final class RepositoryController extends Controller
         private readonly RepositoryBindingService $bindingService,
     ) {}
 
+    public function discover(Request $request): JsonResponse
+    {
+        $token = $request->session()->get('github_oauth_token');
+
+        if (empty($token)) {
+            return response()->json([
+                'repositories' => [],
+                'has_token' => false,
+                'message' => 'No GitHub authorization token found in session. Please authenticate via GitHub OAuth.',
+            ]);
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($token)
+                ->withHeaders([
+                    'Accept' => 'application/vnd.github+json',
+                    'User-Agent' => 'DevGuardAI-App',
+                ])
+                ->timeout(15)
+                ->get('https://api.github.com/user/repos', [
+                    'per_page' => 100,
+                    'sort' => 'updated',
+                    'direction' => 'desc',
+                    'affiliation' => 'owner,collaborator,organization_member',
+                ]);
+
+            if ($response->status() === 401) {
+                $request->session()->forget('github_oauth_token');
+                return response()->json([
+                    'repositories' => [],
+                    'has_token' => false,
+                    'error' => 'token_expired',
+                    'message' => 'GitHub authorization has expired or was revoked. Please sign in again.',
+                ], 401);
+            }
+
+            if (! $response->successful()) {
+                \Illuminate\Support\Facades\Log::warning('GitHub user repos request failed', [
+                    'status' => $response->status(),
+                ]);
+                return response()->json([
+                    'repositories' => [],
+                    'has_token' => true,
+                    'error' => 'github_api_error',
+                    'message' => 'Failed to retrieve repositories from GitHub API: ' . $response->status(),
+                ], 502);
+            }
+
+            $reposData = $response->json();
+            $normalized = [];
+
+            if (is_array($reposData)) {
+                foreach ($reposData as $repo) {
+                    if (! is_array($repo) || ! isset($repo['id'])) {
+                        continue;
+                    }
+                    $normalized[] = [
+                        'id' => $repo['id'],
+                        'name' => $repo['name'] ?? '',
+                        'full_name' => $repo['full_name'] ?? '',
+                        'owner_login' => $repo['owner']['login'] ?? '',
+                        'owner_avatar' => $repo['owner']['avatar_url'] ?? null,
+                        'is_private' => (bool) ($repo['private'] ?? false),
+                        'language' => $repo['language'] ?? null,
+                        'default_branch' => $repo['default_branch'] ?? 'main',
+                        'description' => $repo['description'] ?? null,
+                        'updated_at' => $repo['updated_at'] ?? null,
+                        'html_url' => $repo['html_url'] ?? '',
+                    ];
+                }
+            }
+
+            return response()->json([
+                'repositories' => $normalized,
+                'has_token' => true,
+                'total' => count($normalized),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('GitHub repository discovery exception: ' . $e->getMessage());
+
+            return response()->json([
+                'repositories' => [],
+                'has_token' => true,
+                'error' => 'network_error',
+                'message' => 'Unable to contact GitHub API.',
+            ], 500);
+        }
+    }
+
     public function index(Request $request, Workspace $workspace): JsonResponse
     {
         $decision = $this->authorization->decide(

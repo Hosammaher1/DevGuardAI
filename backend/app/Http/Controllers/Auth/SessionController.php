@@ -49,9 +49,12 @@ final class SessionController extends Controller
                 'id' => $user->getKey(),
                 'name' => $user->name,
                 'email' => $user->email,
+                'nickname' => $request->session()->get('github_nickname', $user->name),
+                'avatar_url' => $request->session()->get('github_avatar_url'),
             ],
             'workspaces' => $workspacesData,
             'is_demo' => (bool) $request->session()->get('is_demo_session', false),
+            'has_github_token' => $request->session()->has('github_oauth_token'),
         ])->header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     }
 }

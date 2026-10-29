@@ -8,6 +8,7 @@ use App\Models\Membership;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
@@ -283,6 +284,119 @@ PHP;
         $membershipWithFalse = new Membership(['active' => 0]);
         self::assertFalse($membershipWithFalse->getAttributes()['active']);
         self::assertIsBool($membershipWithFalse->getAttributes()['active']);
+    }
+
+    public function test_github_repository_discovery_requires_authentication(): void
+    {
+        $this->getJson('/api/github/repositories')
+            ->assertUnauthorized();
+    }
+
+    public function test_github_repository_discovery_returns_no_token_state_when_missing(): void
+    {
+        $user = User::create([
+            'github_user_id' => 'user-without-token',
+            'name' => 'Tokenless User',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson('/api/github/repositories')
+            ->assertOk()
+            ->assertJson([
+                'has_token' => false,
+                'repositories' => [],
+            ]);
+    }
+
+    public function test_github_repository_discovery_fetches_and_normalizes_repositories(): void
+    {
+        $user = User::create([
+            'github_user_id' => 'user-with-token',
+            'name' => 'Token User',
+        ]);
+
+        Http::fake([
+            'https://api.github.com/user/repos*' => Http::response([
+                [
+                    'id' => 123456,
+                    'name' => 'DevGuardAI',
+                    'full_name' => 'Hosammaher1/DevGuardAI',
+                    'owner' => [
+                        'login' => 'Hosammaher1',
+                        'avatar_url' => 'https://avatars.githubusercontent.com/u/195113927',
+                    ],
+                    'private' => true,
+                    'language' => 'PHP',
+                    'default_branch' => 'dev',
+                    'description' => 'AI Code Security',
+                    'updated_at' => '2026-10-28T12:00:00Z',
+                    'html_url' => 'https://github.com/Hosammaher1/DevGuardAI',
+                ],
+                [
+                    'id' => 789012,
+                    'name' => 'Portfolio-Website',
+                    'full_name' => 'Hosammaher1/Portfolio-Website',
+                    'owner' => [
+                        'login' => 'Hosammaher1',
+                        'avatar_url' => 'https://avatars.githubusercontent.com/u/195113927',
+                    ],
+                    'private' => false,
+                    'language' => 'JavaScript',
+                    'default_branch' => 'main',
+                    'description' => 'Personal Portfolio',
+                    'updated_at' => '2026-10-25T10:00:00Z',
+                    'html_url' => 'https://github.com/Hosammaher1/Portfolio-Website',
+                ],
+            ], 200),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['github_oauth_token' => 'gho_dummy_token_123'])
+            ->getJson('/api/github/repositories')
+            ->assertOk()
+            ->assertJson([
+                'has_token' => true,
+                'total' => 2,
+                'repositories' => [
+                    [
+                        'id' => 123456,
+                        'name' => 'DevGuardAI',
+                        'full_name' => 'Hosammaher1/DevGuardAI',
+                        'owner_login' => 'Hosammaher1',
+                        'is_private' => true,
+                        'language' => 'PHP',
+                    ],
+                    [
+                        'id' => 789012,
+                        'name' => 'Portfolio-Website',
+                        'full_name' => 'Hosammaher1/Portfolio-Website',
+                        'owner_login' => 'Hosammaher1',
+                        'is_private' => false,
+                        'language' => 'JavaScript',
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_github_repository_discovery_handles_expired_token(): void
+    {
+        $user = User::create([
+            'github_user_id' => 'user-expired-token',
+            'name' => 'Expired User',
+        ]);
+
+        Http::fake([
+            'https://api.github.com/user/repos*' => Http::response(['message' => 'Bad credentials'], 401),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['github_oauth_token' => 'gho_expired_token'])
+            ->getJson('/api/github/repositories')
+            ->assertStatus(401)
+            ->assertJson([
+                'error' => 'token_expired',
+                'has_token' => false,
+            ]);
     }
 
     private function performCallback(string $githubId, string $email, string $name): void

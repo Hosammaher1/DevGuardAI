@@ -72,6 +72,7 @@ Route::get('/dashboard', function () {
 
 Route::middleware(['auth', 'demo.restrictions'])->group(function (): void {
     Route::get('/api/session', [SessionController::class, 'show'])->name('api.session');
+    Route::get('/api/github/repositories', [RepositoryController::class, 'discover'])->name('api.github.repositories');
     Route::post('/artifacts/{artifact}/access-links', [ArtifactController::class, 'createAccessLink'])->whereUlid('artifact');
     Route::get('/artifacts/{artifact}/content', [ArtifactController::class, 'content'])->whereUlid('artifact');
     Route::delete('/artifacts/{artifact}/access-links/{link}', [ArtifactController::class, 'revokeAccessLink'])->whereUlid('artifact')->whereUlid('link');

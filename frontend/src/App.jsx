@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import LandingScreen from './components/LandingScreen';
+import TopNav from './components/TopNav';
+import Sidebar from './components/Sidebar';
+import RepositoriesScreen from './components/RepositoriesScreen';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -6,7 +10,12 @@ export default function App() {
   const [isDemoSession, setIsDemoSession] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspace, setActiveWorkspace] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, scans, fixes, projects, repos, usage, notifications
+  const [activeTab, setActiveTab] = useState('repos'); // repos, dashboard, scans, fixes, projects, usage, notifications
+
+  // GitHub Discovered Repositories
+  const [discoveredRepos, setDiscoveredRepos] = useState([]);
+  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+  const [hasGithubToken, setHasGithubToken] = useState(false);
 
   // Staging Login State
   const [invitationCode, setInvitationCode] = useState('');
@@ -114,16 +123,34 @@ export default function App() {
           setActiveWorkspace(first);
           loadWorkspaceData(first.id);
         }
+        fetchDiscoveredRepositories();
       } else {
         setCurrentUser(null);
         setWorkspaces([]);
         setActiveWorkspace(null);
         setIsDemoSession(false);
+        setDiscoveredRepos([]);
         setSessionStatus(res.status === 401 ? 'guest' : 'error');
       }
     } catch (err) {
       console.error('Session check failed:', err);
       setSessionStatus('error');
+    }
+  };
+
+  const fetchDiscoveredRepositories = async () => {
+    setIsLoadingRepos(true);
+    try {
+      const res = await apiFetch('/api/github/repositories');
+      if (res.ok) {
+        const data = await res.json();
+        setDiscoveredRepos(data.repositories || []);
+        setHasGithubToken(Boolean(data.has_token));
+      }
+    } catch (err) {
+      console.error('Failed to discover repositories:', err);
+    } finally {
+      setIsLoadingRepos(false);
     }
   };
 
@@ -193,9 +220,13 @@ export default function App() {
     }
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    const code = invitationCode.trim();
+  const handleLogin = async (eOrCode) => {
+    let code = invitationCode.trim();
+    if (typeof eOrCode === 'string') {
+      code = eOrCode.trim();
+    } else if (eOrCode && eOrCode.preventDefault) {
+      eOrCode.preventDefault();
+    }
     if (!code) {
       setAuthError('Please enter an invitation code.');
       return;
@@ -223,6 +254,7 @@ export default function App() {
         } else {
           checkSession();
         }
+        fetchDiscoveredRepositories();
       } else {
         setAuthError(data.message || data.error || 'Invalid invitation code.');
       }
@@ -490,120 +522,40 @@ export default function App() {
   };
 
   // ==========================================
-  // VIEW: GUEST / STAGING LOGIN
+  // VIEW: GUEST / LANDING / LOGIN (SCREEN 1)
   // ==========================================
   if (sessionStatus !== 'authenticated') {
-    return (
-      <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(ellipse at top, #141e33 0%, #090d16 100%)', padding: '1.5rem' }}>
-        <div style={{ maxWidth: '440px', width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '2.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', color: '#fff', boxShadow: '0 4px 14px var(--primary-glow)' }}>
-              🛡️
-            </div>
-            <div>
-              <div style={{ fontWeight: '800', fontSize: '1.35rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>DevGuard AI</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Autonomous QA Platform</div>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-            <div style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '20px', background: 'rgba(59, 130, 246, 0.12)', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
-              PRIVATE STAGING ENVIRONMENT
-            </div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-              Invitation Access
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', lineHeight: 1.5 }}>
-              Enter your invitation code to access the private staging environment with full application features.
-            </p>
-          </div>
-
-          {sessionStatus === 'checking' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2rem 0' }}>
-              <div className="spinner" style={{ width: '32px', height: '32px', border: '3px solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%' }}></div>
-              <div style={{ color: 'var(--text-dim)', fontSize: '0.86rem' }}>Verifying staging session...</div>
-            </div>
-          ) : (
-            <div>
-              {authError && (
-                <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: '6px', padding: '0.75rem', marginBottom: '1rem', color: 'var(--text-main)', fontSize: '0.84rem' }}>
-                  {authError}
-                </div>
-              )}
-
-              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div>
-                  <label htmlFor="invitation_code" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '0.35rem' }}>
-                    Invitation Code
-                  </label>
-                  <input
-                    id="invitation_code"
-                    type="password"
-                    value={invitationCode}
-                    onChange={(e) => setInvitationCode(e.target.value)}
-                    placeholder="Enter invitation code"
-                    autoFocus
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 1rem',
-                      background: '#090d16',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '6px',
-                      color: '#fff',
-                      fontSize: '0.9rem',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmittingCode}
-                  style={{
-                    background: isSubmittingCode ? 'var(--border-color)' : 'var(--primary)',
-                    color: '#fff',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '6px',
-                    fontWeight: 700,
-                    fontSize: '0.92rem',
-                    boxShadow: isSubmittingCode ? 'none' : '0 4px 12px var(--primary-glow)',
-                    cursor: isSubmittingCode ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {isSubmittingCode ? 'Authenticating...' : 'Enter Staging →'}
-                </button>
-              </form>
-
-              {/* SECONDARY GITHUB OAUTH OPTION */}
-              <div style={{ marginTop: '2rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Developer Access
-                </div>
-                <a
-                  href="/auth/github/redirect"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.86rem',
-                    fontWeight: 600,
-                    color: 'var(--text-muted)',
-                    textDecoration: 'none',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '6px',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                  }}
-                >
-                  <span>Sign in with GitHub ↗</span>
-                </a>
-              </div>
-            </div>
-          )}
+    if (sessionStatus === 'checking') {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#090D16',
+          color: '#FFFFFF',
+          fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+        }}>
+          <div className="spinner" style={{
+            width: '36px',
+            height: '36px',
+            border: '3px solid #1E293B',
+            borderTopColor: '#3B82F6',
+            borderRadius: '50%',
+            marginBottom: '16px',
+          }} />
+          <div style={{ color: '#94A3B8', fontSize: '14px' }}>Loading DevGuardAI...</div>
         </div>
-      </main>
+      );
+    }
+
+    return (
+      <LandingScreen
+        onDemoLogin={(code) => handleLogin(code)}
+        isSubmittingCode={isSubmittingCode}
+        authError={authError}
+      />
     );
   }
 
@@ -611,197 +563,99 @@ export default function App() {
   // VIEW: AUTHENTICATED WORKSPACE
   // ==========================================
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      {/* SIDEBAR NAVIGATION */}
-      <aside style={{ width: '270px', borderRight: '1px solid var(--border-color)', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.25rem', color: '#fff' }}>
-              🛡️
-            </div>
-            <div>
-              <div style={{ fontWeight: '800', fontSize: '1.1rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>DevGuard AI</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Autonomous QA & Security</div>
-            </div>
-          </div>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg-primary)' }}>
+      {/* TOP NAVIGATION (SCREEN 3) */}
+      <TopNav
+        currentUser={currentUser}
+        workspaces={workspaces}
+        activeWorkspace={activeWorkspace}
+        onSelectWorkspace={(ws) => {
+          setActiveWorkspace(ws);
+          fetchWorkspaceData(ws.id);
+        }}
+        onLogout={handleLogout}
+        unreadCount={unreadNotifications}
+      />
 
-        {/* WORKSPACE SELECTOR & BADGE */}
-        <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border-color)', background: 'rgba(59, 130, 246, 0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Active Workspace</div>
-            <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--primary)', fontWeight: 800 }}>
-              STAGING
-            </span>
-          </div>
-          <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)' }}></span>
-            {activeWorkspace ? activeWorkspace.name : 'Staging Workspace'}
-          </div>
-        </div>
+      <div style={{ display: 'flex', flex: 1, height: 'calc(100vh - 60px)', overflow: 'hidden' }}>
+        {/* SIDEBAR NAVIGATION (SCREEN 3) */}
+        <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
 
-        {/* NAV TABS */}
-        <nav style={{ padding: '1rem 0.75rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-            { id: 'scans', label: 'Scans & Reports', icon: '🔬', badge: scans.length },
-            { id: 'fixes', label: 'AI Fix Plans', icon: '⚡', badge: fixPlans.length },
-            { id: 'projects', label: 'Projects & Targets', icon: '📁', badge: projects.length },
-            { id: 'repos', label: 'Repositories', icon: '📦', badge: repositories.length },
-            { id: 'usage', label: 'Credits & Usage', icon: '💳' },
-            { id: 'notifications', label: 'Notifications', icon: '🔔', badge: unreadNotifications },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '6px',
-                color: activeTab === tab.id ? 'var(--text-main)' : 'var(--text-muted)',
-                background: activeTab === tab.id ? 'var(--border-color)' : 'transparent',
-                fontWeight: activeTab === tab.id ? 600 : 500,
-                fontSize: '0.88rem',
-                textAlign: 'left',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
+        {/* MAIN VIEW AREA */}
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+          {/* HEADER (For non-repos tabs) */}
+          {activeTab !== 'repos' && (
+            <header style={{ height: '64px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2rem', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <h1 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'capitalize' }}>
+                  {activeTab.replace('_', ' ')}
+                </h1>
+                {currentScan && (
+                  <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: currentScan.status === 'completed' ? 'var(--success-bg)' : 'var(--warning-bg)', color: currentScan.status === 'completed' ? 'var(--success)' : 'var(--warning)', fontWeight: 600 }}>
+                    {currentScan.status.toUpperCase()}
+                  </span>
+                )}
               </div>
-              {tab.badge !== undefined && tab.badge > 0 && (
-                <span style={{ fontSize: '0.7rem', padding: '2px 7px', borderRadius: '10px', background: activeTab === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.1)', color: '#fff' }}>
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
 
-        {/* USER PROFILE & LOGOUT */}
-        <div style={{ padding: '0.9rem 1.1rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 600, flexShrink: 0 }}>
-              {currentUser ? currentUser.name?.[0]?.toUpperCase() : 'S'}
-            </div>
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                {currentUser ? currentUser.name : 'Staging User'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {activeTab === 'projects' && (
+                  <button
+                    onClick={() => setShowNewProjectModal(true)}
+                    style={{
+                      background: 'var(--primary)',
+                      color: '#fff',
+                      padding: '0.55rem 1.1rem',
+                      borderRadius: '6px',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    + New Project
+                  </button>
+                )}
+
+                <button
+                  onClick={handleRunScan}
+                  disabled={isScanning}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: isScanning ? 'var(--border-color)' : 'var(--primary)',
+                    color: '#fff',
+                    padding: '0.55rem 1.1rem',
+                    borderRadius: '6px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    boxShadow: isScanning ? 'none' : '0 2px 8px var(--primary-glow)',
+                  }}
+                >
+                  {isScanning ? (
+                    <>
+                      <span className="spinner" style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }}></span>
+                      <span>{scanStep || 'Executing Scan...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>▶</span>
+                      <span>Trigger Automated Scan</span>
+                    </>
+                  )}
+                </button>
               </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
-                Owner • Staging Access
-              </div>
+            </header>
+          )}
+
+          {/* FEEDBACK BANNER */}
+          {actionMessage && (
+            <div style={{ padding: '0.85rem 2rem', background: actionMessage.type === 'danger' ? 'var(--danger-bg)' : actionMessage.type === 'warning' ? 'var(--warning-bg)' : 'var(--success-bg)', borderBottom: `1px solid ${actionMessage.type === 'danger' ? 'var(--danger)' : actionMessage.type === 'warning' ? 'var(--warning)' : 'var(--success)'}`, color: 'var(--text-main)', fontSize: '0.86rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>{actionMessage.text}</div>
+              <button onClick={() => setActionMessage(null)} style={{ color: 'var(--text-dim)', fontSize: '1rem', padding: '0 4px' }}>✕</button>
             </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            title="Sign out"
-            style={{
-              padding: '4px 8px',
-              borderRadius: '4px',
-              background: 'var(--border-color)',
-              color: 'var(--text-muted)',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </aside>
+          )}
 
-      {/* MAIN VIEW AREA */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
-        {/* HEADER */}
-        <header style={{ height: '64px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2rem', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h1 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'capitalize' }}>
-              {activeTab.replace('_', ' ')}
-            </h1>
-            {currentScan && (
-              <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: currentScan.status === 'completed' ? 'var(--success-bg)' : 'var(--warning-bg)', color: currentScan.status === 'completed' ? 'var(--success)' : 'var(--warning)', fontWeight: 600 }}>
-                {currentScan.status.toUpperCase()}
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {activeTab === 'projects' && (
-              <button
-                onClick={() => setShowNewProjectModal(true)}
-                style={{
-                  background: 'var(--primary)',
-                  color: '#fff',
-                  padding: '0.55rem 1.1rem',
-                  borderRadius: '6px',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                }}
-              >
-                + New Project
-              </button>
-            )}
-
-            {activeTab === 'repos' && (
-              <button
-                onClick={() => setShowConnectRepoModal(true)}
-                style={{
-                  background: 'var(--primary)',
-                  color: '#fff',
-                  padding: '0.55rem 1.1rem',
-                  borderRadius: '6px',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                }}
-              >
-                + Connect Repository
-              </button>
-            )}
-
-            <button
-              onClick={handleRunScan}
-              disabled={isScanning}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: isScanning ? 'var(--border-color)' : 'var(--primary)',
-                color: '#fff',
-                padding: '0.55rem 1.1rem',
-                borderRadius: '6px',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                boxShadow: isScanning ? 'none' : '0 2px 8px var(--primary-glow)',
-              }}
-            >
-              {isScanning ? (
-                <>
-                  <span className="spinner" style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }}></span>
-                  <span>{scanStep || 'Executing Scan...'}</span>
-                </>
-              ) : (
-                <>
-                  <span>▶</span>
-                  <span>Trigger Automated Scan</span>
-                </>
-              )}
-            </button>
-          </div>
-        </header>
-
-        {/* FEEDBACK BANNER */}
-        {actionMessage && (
-          <div style={{ padding: '0.85rem 2rem', background: actionMessage.type === 'danger' ? 'var(--danger-bg)' : actionMessage.type === 'warning' ? 'var(--warning-bg)' : 'var(--success-bg)', borderBottom: `1px solid ${actionMessage.type === 'danger' ? 'var(--danger)' : actionMessage.type === 'warning' ? 'var(--warning)' : 'var(--success)'}`, color: 'var(--text-main)', fontSize: '0.86rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>{actionMessage.text}</div>
-            <button onClick={() => setActionMessage(null)} style={{ color: 'var(--text-dim)', fontSize: '1rem', padding: '0 4px' }}>✕</button>
-          </div>
-        )}
-
-        {/* CONTENT TABS */}
-        <div style={{ padding: '2rem', flex: 1 }}>
+          {/* CONTENT TABS */}
+          <div style={{ padding: activeTab === 'repos' ? '0' : '2rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -994,7 +848,7 @@ export default function App() {
           )}
 
           {/* TAB 2: SCANS & REPORTS */}
-          {activeTab === 'scans' && (
+          {(activeTab === 'scans' || activeTab === 'reports') && (
             <div>
               <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>Historical Scans</h3>
@@ -1316,108 +1170,45 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: REPOSITORIES */}
+          {/* TAB 5: REPOSITORIES (SCREEN 3) */}
           {activeTab === 'repos' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {showConnectRepoModal && (
-                <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid var(--primary)', padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>Connect GitHub Repository</h3>
-                  <form onSubmit={handleConnectRepository} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-dim)', marginBottom: '4px' }}>Repository Full Name (owner/repo)</label>
-                      <input
-                        type="text"
-                        value={repoFullName}
-                        onChange={(e) => setRepoFullName(e.target.value)}
-                        placeholder="e.g. Hosammaher1/DevGuardAI"
-                        required
-                        style={{ width: '100%', padding: '0.6rem 0.8rem', background: '#090d16', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', fontSize: '0.86rem' }}
-                      />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-dim)', marginBottom: '4px' }}>Default Branch</label>
-                        <input
-                          type="text"
-                          value={repoDefaultBranch}
-                          onChange={(e) => setRepoDefaultBranch(e.target.value)}
-                          placeholder="main"
-                          style={{ width: '100%', padding: '0.6rem 0.8rem', background: '#090d16', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', fontSize: '0.86rem' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-dim)', marginBottom: '4px' }}>GitHub App Installation ID</label>
-                        <input
-                          type="text"
-                          value={repoInstallationId}
-                          onChange={(e) => setRepoInstallationId(e.target.value)}
-                          placeholder="e.g. 99990001"
-                          style={{ width: '100%', padding: '0.6rem 0.8rem', background: '#090d16', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', fontSize: '0.86rem' }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowConnectRepoModal(false)}
-                        style={{ background: 'var(--border-color)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.82rem' }}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isConnectingRepo}
-                        style={{ background: 'var(--primary)', color: '#fff', padding: '0.5rem 1.25rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}
-                      >
-                        {isConnectingRepo ? 'Connecting...' : 'Connect Repository'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Connected Repositories</h3>
-                  {!showConnectRepoModal && (
-                    <button
-                      onClick={() => setShowConnectRepoModal(true)}
-                      style={{ background: 'var(--primary)', color: '#fff', padding: '0.45rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600 }}
-                    >
-                      + Connect Repository
-                    </button>
-                  )}
-                </div>
-
-                {repositories.length === 0 ? (
-                  <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>
-                    <div style={{ fontSize: '1rem', color: 'var(--text-main)', marginBottom: '6px' }}>No Repositories Connected</div>
-                    <p style={{ fontSize: '0.84rem', marginBottom: '1rem' }}>Connect a GitHub repository to enable autonomous regression scans and PR workflows.</p>
-                    <button onClick={() => setShowConnectRepoModal(true)} style={{ background: 'var(--primary)', color: '#fff', padding: '0.55rem 1.1rem', borderRadius: '6px', fontSize: '0.84rem', fontWeight: 600 }}>
-                      Connect Repository
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {repositories.map(r => (
-                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: '#0f172a', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                        <div>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>{r.full_name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Default Branch: {r.default_branch} • Status: {r.status}</div>
-                        </div>
-                        <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: 'var(--success-bg)', color: 'var(--success)', fontWeight: 600 }}>
-                          CONNECTED
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <RepositoriesScreen
+              repositories={discoveredRepos}
+              isLoading={isLoadingRepos}
+              hasToken={hasGithubToken}
+              onRefresh={fetchDiscoveredRepositories}
+              onSelectRepo={async (repo) => {
+                if (!activeWorkspace) return;
+                try {
+                  setActionMessage({ type: 'info', text: `Selecting repository ${repo.full_name}...` });
+                  const csrf = getCsrfToken();
+                  const res = await fetch(`/api/workspaces/${activeWorkspace.id}/repositories`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                      'X-CSRF-TOKEN': csrf,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                      full_name: repo.full_name,
+                      default_branch: repo.default_branch || 'main',
+                      github_installation_id: repo.id ? String(repo.id) : '10000',
+                    }),
+                  });
+                  if (res.ok) {
+                    setActionMessage({ type: 'success', text: `Repository ${repo.full_name} is active.` });
+                    await fetchWorkspaceData(activeWorkspace.id);
+                  }
+                } catch (err) {
+                  console.error('Failed to select repo:', err);
+                }
+              }}
+            />
           )}
 
           {/* TAB 6: USAGE & CREDITS */}
-          {activeTab === 'usage' && (
+          {(activeTab === 'usage' || activeTab === 'settings') && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem' }}>
               <div style={{ background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '1.25rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '1rem' }}>Scan Credits</h3>
@@ -1484,6 +1275,7 @@ export default function App() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }
